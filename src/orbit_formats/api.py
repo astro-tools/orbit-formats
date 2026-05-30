@@ -23,7 +23,7 @@ from orbit_formats.canonical.base import Canonical
 from orbit_formats.canonical.elements import MeanElementSet
 from orbit_formats.canonical.ephemeris import Ephemeris
 from orbit_formats.canonical.state import StateVector
-from orbit_formats.detect import detect_source
+from orbit_formats.detect import detect_format_from_source
 from orbit_formats.errors import (
     UnknownFormatError,
     UnsupportedConversionError,
@@ -32,9 +32,8 @@ from orbit_formats.errors import (
 from orbit_formats.formats import (
     canonical_form,
     extension_format,
-    is_known_format,
     is_writable,
-    known_format_ids,
+    normalize_format,
 )
 from orbit_formats.registry import get_reader, get_writer
 from orbit_formats.source import SourceInput, load_source
@@ -54,12 +53,12 @@ def read(source: SourceInput, *, format: str | None = None) -> Canonical:
     """Read ``source`` into the appropriate canonical subtype.
 
     ``source`` is a path or in-memory buffer; an explicit ``format=`` overrides detection.
-    Raises :class:`~orbit_formats.errors.UnsupportedFormatError` if the detected format
+    Raises :class:`~orbit_formats.errors.UnsupportedFormatError` if the resolved format
     has no registered reader, and the detection errors otherwise (see
-    :func:`~orbit_formats.detect.detect`).
+    :func:`~orbit_formats.detect.detect_format`).
     """
     src = load_source(source)
-    format_id = detect_source(src, format=format)
+    format_id = normalize_format(format) if format is not None else detect_format_from_source(src)
     reader = get_reader(format_id)
     if reader is None:
         raise UnsupportedFormatError(f"no reader is registered for format {format_id!r}")
@@ -95,11 +94,7 @@ def convert(source: SourceInput | Canonical, to: str, *, format: str | None = No
     a cross-form conversion with no available path raises
     :class:`~orbit_formats.errors.UnsupportedConversionError`.
     """
-    target = to.strip().lower()
-    if not is_known_format(target):
-        raise UnknownFormatError(
-            f"unknown target format {to!r}; known formats: {', '.join(known_format_ids())}"
-        )
+    target = normalize_format(to)
     obj = source if isinstance(source, Canonical) else read(source, format=format)
     source_form = _form_of(obj)
     target_form = canonical_form(target)
@@ -112,12 +107,7 @@ def convert(source: SourceInput | Canonical, to: str, *, format: str | None = No
 
 def _resolve_write_format(format: str | None, destination: str | os.PathLike[str]) -> str:
     if format is not None:
-        normalized = format.strip().lower()
-        if not is_known_format(normalized):
-            raise UnknownFormatError(
-                f"unknown format {format!r}; known formats: {', '.join(known_format_ids())}"
-            )
-        return normalized
+        return normalize_format(format)
     suffix = Path(destination).suffix.lower() or None
     from_extension = extension_format(suffix)
     if from_extension is None:

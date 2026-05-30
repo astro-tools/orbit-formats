@@ -167,7 +167,7 @@ def test_convert_across_forms_without_a_path_is_unsupported() -> None:
 
 
 def test_convert_with_an_unknown_target_is_rejected() -> None:
-    with pytest.raises(UnknownFormatError, match="unknown target format 'bogus'"):
+    with pytest.raises(UnknownFormatError, match="unknown format 'bogus'"):
         convert(_ephemeris(), to="bogus")
 
 

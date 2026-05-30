@@ -2,8 +2,8 @@
 
 The public surface lives here. It exposes the canonical metamodel — the typed dataclass
 family downstream consumers adopt as the single format-agnostic representation — and the
-``read`` / ``write`` / ``convert`` / ``detect`` entry points, with format detection and a
-registry the format readers and writers plug into as they land.
+``read`` / ``write`` / ``convert`` / ``detect_format`` entry points, with format detection
+and a registry the format readers and writers plug into as they land.
 """
 
 from orbit_formats.api import convert, read, write
@@ -20,7 +20,7 @@ from orbit_formats.canonical import (
     StateVector,
     Tracking,
 )
-from orbit_formats.detect import detect
+from orbit_formats.detect import detect_format
 from orbit_formats.errors import (
     AmbiguousFormatError,
     FormatDetectionError,
@@ -29,6 +29,7 @@ from orbit_formats.errors import (
     UnsupportedConversionError,
     UnsupportedFormatError,
 )
+from orbit_formats.formats import normalize_format
 from orbit_formats.registry import register_reader, register_writer
 from orbit_formats.source import Source
 from orbit_formats.units import DEFAULT_UNITS, UnitSpec
@@ -58,7 +59,8 @@ __all__ = [
     "UnsupportedFormatError",
     "__version__",
     "convert",
-    "detect",
+    "detect_format",
+    "normalize_format",
     "read",
     "register_reader",
     "register_writer",

@@ -3,7 +3,7 @@
 This module is pure data and pure functions: it knows *what* formats exist, how to
 recognise each from a content signature, which file extensions hint at it, the canonical
 form it prefers (the shape :mod:`orbit_formats.convert` routes through), and whether it
-can be written. It deliberately depends on nothing else in the package, so the detector
+can be written. It depends only on the error types, so the detector
 (:mod:`orbit_formats.detect`), the registry, and the public API can all build on it
 without a cycle.
 
@@ -20,6 +20,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
 
+from orbit_formats.errors import UnknownFormatError
+
 __all__ = [
     "FORMATS",
     "Confidence",
@@ -30,6 +32,7 @@ __all__ = [
     "is_writable",
     "known_format_ids",
     "match_binary",
+    "normalize_format",
     "score_text_formats",
 ]
 
@@ -201,6 +204,21 @@ def is_known_format(format_id: str) -> bool:
 def known_format_ids() -> tuple[str, ...]:
     """All catalogued format ids, in catalog order."""
     return tuple(spec.id for spec in FORMATS)
+
+
+def normalize_format(format: str) -> str:
+    """Validate and canonicalise an explicit format id (lowercased, trimmed).
+
+    This is the counterpart to detection: where :func:`orbit_formats.detect.detect_format`
+    works out *what a source is*, this validates a format id a caller already supplied.
+    Raises :class:`~orbit_formats.errors.UnknownFormatError` if it is not a known format.
+    """
+    normalized = format.strip().lower()
+    if not is_known_format(normalized):
+        raise UnknownFormatError(
+            f"unknown format {format!r}; known formats: {', '.join(known_format_ids())}"
+        )
+    return normalized
 
 
 def canonical_form(format_id: str) -> str:

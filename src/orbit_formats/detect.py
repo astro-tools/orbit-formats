@@ -1,60 +1,50 @@
-"""Format auto-detection — pick a format from a file's content signature or extension.
+"""Format auto-detection — work out what a source *is* from its content or extension.
 
 Detection is content-signature-first: a binary magic number is checked before any text
-decode, a strong text header then identifies the format, the file extension breaks ties
-or names a signature-less format (the GMAT report), and an explicit ``format=`` override
-always wins. Resolution runs a deterministic, ordered detector list and reports the
-highest-confidence match; genuine ambiguity raises a typed error naming the candidates,
-and content that matches nothing raises a typed unknown-format error.
+decode, a strong text header then identifies the format, and the file extension breaks
+ties or names a signature-less format (the GMAT report). Resolution runs a deterministic,
+ordered detector list and reports the highest-confidence match; genuine ambiguity raises a
+typed error naming the candidates, and content that matches nothing raises a typed
+unknown-format error.
+
+Detection is purely "what is this source". Validating a format id a caller already knows
+is a separate concern (:func:`orbit_formats.formats.normalize_format`), and the
+"use the explicit format, else detect" composition lives on the read/write/convert entry
+points — not here.
 """
 
 from __future__ import annotations
 
 from orbit_formats.errors import AmbiguousFormatError, UnknownFormatError
-from orbit_formats.formats import (
-    extension_format,
-    is_known_format,
-    known_format_ids,
-    match_binary,
-    score_text_formats,
-)
+from orbit_formats.formats import extension_format, match_binary, score_text_formats
 from orbit_formats.source import Source, SourceInput, load_source
 
-__all__ = ["detect", "detect_source"]
+__all__ = ["detect_format", "detect_format_from_source"]
 
 # How many leading bytes detection inspects. Every signature lives in a file's header, so
 # a prefix is enough — a detection-only pass need not read a whole multi-megabyte ephemeris.
 DETECT_PREFIX_BYTES = 65536
 
 
-def detect(source: SourceInput, *, format: str | None = None) -> str:
-    """Return the format id of ``source``.
+def detect_format(source: SourceInput) -> str:
+    """Return the format id of ``source`` (a path or in-memory buffer).
 
-    ``source`` is a path or an in-memory buffer. An explicit ``format=`` always wins (and
-    is validated against the catalog). Otherwise detection reads a header prefix and
-    resolves the format from its content signature, falling back to the file extension.
-    Raises :class:`~orbit_formats.errors.UnknownFormatError` if nothing matches and
-    :class:`~orbit_formats.errors.AmbiguousFormatError` if several signatures tie.
+    Reads a header prefix and resolves the format from its content signature, falling back
+    to the file extension. Raises :class:`~orbit_formats.errors.UnknownFormatError` if
+    nothing matches and :class:`~orbit_formats.errors.AmbiguousFormatError` if several
+    signatures tie. To force a known format instead of detecting, pass ``format=`` to
+    :func:`~orbit_formats.read` (etc.), which validate it via
+    :func:`~orbit_formats.formats.normalize_format`.
     """
-    if format is not None:
-        return _normalize_explicit(format)
-    return detect_source(load_source(source, limit=DETECT_PREFIX_BYTES))
+    return detect_format_from_source(load_source(source, limit=DETECT_PREFIX_BYTES))
 
 
-def detect_source(src: Source, *, format: str | None = None) -> str:
-    """Detect the format of an already-loaded :class:`Source` (the internal entry point)."""
-    if format is not None:
-        return _normalize_explicit(format)
+def detect_format_from_source(src: Source) -> str:
+    """Detect the format of an already-loaded :class:`Source`.
+
+    The read path uses this to detect without re-reading the file it has already loaded.
+    """
     return _detect(src.data, src.suffix, src.name)
-
-
-def _normalize_explicit(format: str) -> str:
-    normalized = format.strip().lower()
-    if not is_known_format(normalized):
-        raise UnknownFormatError(
-            f"unknown format {format!r}; known formats: {', '.join(known_format_ids())}"
-        )
-    return normalized
 
 
 def _detect(data: bytes, suffix: str | None, name: str | None) -> str:

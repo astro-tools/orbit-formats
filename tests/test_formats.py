@@ -7,6 +7,9 @@ relies on when it checks binary magic before attempting a text decode.
 
 from __future__ import annotations
 
+import pytest
+
+from orbit_formats import UnknownFormatError
 from orbit_formats import registry as registry_module
 from orbit_formats.formats import (
     Confidence,
@@ -18,7 +21,18 @@ from orbit_formats.formats import (
     _sig_tle,
     _tle_checksum_ok,
     extension_format,
+    normalize_format,
 )
+
+
+def test_normalize_format_canonicalises_a_known_id() -> None:
+    assert normalize_format("  CCSDS-OEM  ") == "ccsds-oem"
+    assert normalize_format("tle") == "tle"
+
+
+def test_normalize_format_rejects_an_unknown_id() -> None:
+    with pytest.raises(UnknownFormatError, match="unknown format 'bogus'"):
+        normalize_format("bogus")
 
 
 def test_text_signatures_report_no_match_on_binary_input() -> None:

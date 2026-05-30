@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from orbit_formats import AmbiguousFormatError, UnknownFormatError, detect
+from orbit_formats import AmbiguousFormatError, UnknownFormatError, detect_format
 from orbit_formats.formats import (
     Confidence,
     canonical_form,
@@ -56,7 +56,7 @@ SPK = b"DAF/SPK " + b"\x00" * 120
     ],
 )
 def test_detect_by_content_signature(content: bytes, expected: str) -> None:
-    assert detect(content) == expected
+    assert detect_format(content) == expected
 
 
 def test_binary_magic_is_checked_before_text_decode() -> None:
@@ -65,71 +65,57 @@ def test_binary_magic_is_checked_before_text_decode() -> None:
     assert match_binary(OEM_KVN) is None
 
 
-def test_explicit_format_overrides_content() -> None:
-    # SP3 content, but the caller insists it is a TLE.
-    assert detect(SP3, format="tle") == "tle"
-
-
-def test_explicit_format_is_normalised() -> None:
-    assert detect(b"anything", format="  CCSDS-OEM  ") == "ccsds-oem"
-
-
-def test_explicit_unknown_format_is_rejected() -> None:
-    with pytest.raises(UnknownFormatError, match="unknown format 'bogus'"):
-        detect(b"anything", format="bogus")
-
-
 def test_detect_from_a_path(tmp_path: Path) -> None:
     target = tmp_path / "sat.tle"
     target.write_bytes(TLE)
-    assert detect(target) == "tle"
+    assert detect_format(target) == "tle"
 
 
 def test_detect_from_a_named_buffer() -> None:
     buffer = io.BytesIO(SP3)
     buffer.name = "igs.sp3"
-    assert detect(buffer) == "sp3"
+    assert detect_format(buffer) == "sp3"
 
 
 def test_gmat_report_is_detected_by_extension(tmp_path: Path) -> None:
     # The GMAT report has no content signature; only its extension identifies it.
     target = tmp_path / "mission.report"
     target.write_text("A1ModJulian   X   Y   Z\n12345.0  7000 0 0\n")
-    assert detect(target) == "gmat-report"
+    assert detect_format(target) == "gmat-report"
 
 
 def test_extension_breaks_a_signature_tie(tmp_path: Path) -> None:
     target = tmp_path / "doc.oem"
     target.write_bytes(OEM_KVN + OMM_KVN)  # both CCSDS_*_VERS keywords present
-    assert detect(target) == "ccsds-oem"
+    assert detect_format(target) == "ccsds-oem"
 
 
 def test_ambiguous_content_without_a_tiebreaker_raises() -> None:
     with pytest.raises(AmbiguousFormatError) as excinfo:
-        detect(OEM_KVN + OMM_KVN)  # bytes: no extension to break the tie
+        detect_format(OEM_KVN + OMM_KVN)  # bytes: no extension to break the tie
     assert set(excinfo.value.candidates) == {"ccsds-oem", "ccsds-omm"}
 
 
 def test_a_corrupted_tle_checksum_is_not_detected_as_tle() -> None:
     broken = TLE.replace(b"0  2927\n", b"0  2928\n")  # flip line-1 checksum
     with pytest.raises(UnknownFormatError):
-        detect(broken)
+        detect_format(broken)
 
 
 def test_unknown_text_content_raises() -> None:
     with pytest.raises(UnknownFormatError, match="matched no known signature"):
-        detect(b"just some notes\nwith nothing recognisable\n")
+        detect_format(b"just some notes\nwith nothing recognisable\n")
 
 
 def test_unknown_binary_content_raises() -> None:
     with pytest.raises(UnknownFormatError, match="binary content"):
-        detect(b"\x00\x01\x02\x03 not a kernel")
+        detect_format(b"\x00\x01\x02\x03 not a kernel")
 
 
 def test_non_utf8_text_still_decodes_via_latin1() -> None:
     # Invalid UTF-8 but no NUL byte: decodes as latin-1, then fails to match a signature.
     with pytest.raises(UnknownFormatError):
-        detect(b"\xff\xfe some latin-1 bytes, no signature")
+        detect_format(b"\xff\xfe some latin-1 bytes, no signature")
 
 
 def test_catalog_helpers() -> None:
