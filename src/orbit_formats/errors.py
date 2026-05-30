@@ -3,9 +3,10 @@
 Every error orbit-formats raises on purpose descends from :class:`OrbitFormatsError`, so a
 caller can catch the whole family with one ``except``. Detection failures
 (:class:`FormatDetectionError` and its two subtypes) are separated from operational
-failures (:class:`UnsupportedFormatError`, :class:`UnsupportedConversionError`) so a
-caller can tell "I could not work out *what* this is" from "I know what it is but cannot
-do *that* with it".
+failures (:class:`UnsupportedFormatError`, :class:`UnsupportedConversionError`) and from a
+parse failure on otherwise-recognised content (:class:`MalformedSourceError`), so a caller
+can tell "I could not work out *what* this is" from "I know what it is but cannot do
+*that* with it" from "I know what it is but its content is broken".
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ __all__ = [
     "AmbiguousFormatError",
     "FormatDetectionError",
     "FrameRotationUnsupportedError",
+    "MalformedSourceError",
     "OrbitFormatsError",
     "UnknownFormatError",
     "UnsupportedConversionError",
@@ -78,6 +80,16 @@ class UnsupportedConversionError(OrbitFormatsError):
             f"no conversion path from a {source_form} to {target_format!r} "
             f"(which expects a {target_form}); only same-form conversion is supported"
         )
+
+
+class MalformedSourceError(OrbitFormatsError):
+    """Recognised as a known format, but its content could not be parsed.
+
+    The format id is settled (detected or supplied) — this is not a detection failure —
+    but the bytes are broken for that format: a TLE with an invalid checksum, a record
+    missing a required line, internally inconsistent fields. Distinct from
+    :class:`UnsupportedFormatError` (the format is fine, the *operation* is unavailable).
+    """
 
 
 class FrameRotationUnsupportedError(OrbitFormatsError):
