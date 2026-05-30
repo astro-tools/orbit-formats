@@ -107,6 +107,14 @@ ignore_missing_imports = true
 module = ["astropy", "astropy.*"]
 ignore_missing_imports = true
 
+# ccsds-ndm (GPL) is the dev-only cross-validation oracle: never a runtime or dev
+# dependency, never distributed, installed transiently only in the dedicated CI oracle
+# job. It ships no type stubs and is absent from the typecheck environment, so the oracle
+# test imports it behind this override (and skips via importorskip wherever it is absent).
+[[tool.mypy.overrides]]
+module = ["ccsds_ndm", "ccsds_ndm.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]

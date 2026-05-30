@@ -29,11 +29,18 @@ class Source:
     set only when the input was a filesystem path; ``name`` is a display name used for
     extension hints and error messages. Readers consume a ``Source`` rather than a raw
     path so the same reader works for a file and an in-memory buffer.
+
+    ``retain`` is the caller's opt-in (via :func:`~orbit_formats.read`'s
+    ``retain_source``) to keep the raw bytes on the fidelity model for a verbatim,
+    byte-identical same-format re-emit. It defaults to ``False`` so an ordinary read holds
+    no extra copy; a reader that supports verbatim retention (e.g. the OEM reader) consults
+    this flag to decide whether to stash the source bytes.
     """
 
     data: bytes
     path: Path | None = None
     name: str | None = None
+    retain: bool = False
 
     @property
     def suffix(self) -> str | None:
@@ -56,27 +63,29 @@ class Source:
         return self.data.decode(encoding)
 
 
-def load_source(source: SourceInput, *, limit: int | None = None) -> Source:
+def load_source(source: SourceInput, *, limit: int | None = None, retain: bool = False) -> Source:
     """Resolve ``source`` to a :class:`Source`.
 
     A ``str`` or :class:`os.PathLike` is read from disk; ``bytes`` / ``bytearray`` are
     taken as the content directly; a file-like object is read (and encoded to UTF-8 if it
     yields ``str``). ``limit``, when set, caps how many bytes are loaded — used so a
     detection-only pass over a large file reads just a prefix rather than the whole thing.
+    ``retain`` is recorded on the result so a reader can choose to keep the raw bytes for a
+    verbatim re-emit (see :class:`Source`); it is never set on a prefix-limited load.
     """
     if isinstance(source, (bytes, bytearray)):
-        return Source(data=_truncate(bytes(source), limit))
+        return Source(data=_truncate(bytes(source), limit), retain=retain)
     if isinstance(source, (str, os.PathLike)):
         path = Path(source)
         with path.open("rb") as handle:
             data = handle.read() if limit is None else handle.read(limit)
-        return Source(data=data, path=path, name=path.name)
+        return Source(data=data, path=path, name=path.name, retain=retain)
     reader = getattr(source, "read", None)
     if callable(reader):
         raw = reader() if limit is None else reader(limit)
         data = raw.encode("utf-8") if isinstance(raw, str) else bytes(raw)
         name = getattr(source, "name", None)
-        return Source(data=data, name=name if isinstance(name, str) else None)
+        return Source(data=data, name=name if isinstance(name, str) else None, retain=retain)
     raise TypeError(f"unsupported source type: {type(source).__name__!r}")
 
 
