@@ -33,6 +33,14 @@ from orbit_formats.formats import normalize_format
 from orbit_formats.registry import register_reader, register_writer
 from orbit_formats.source import Source
 from orbit_formats.units import DEFAULT_UNITS, UnitSpec
+from orbit_formats.warnings import (
+    DroppedField,
+    DroppedFieldWarning,
+    LossyConversionWarning,
+    ModelApproximationWarning,
+    PrecisionLossWarning,
+    warn_lossy,
+)
 
 __version__ = "0.1.0"
 
@@ -42,13 +50,18 @@ __all__ = [
     "Attitude",
     "Canonical",
     "Conjunction",
+    "DroppedField",
+    "DroppedFieldWarning",
     "Ephemeris",
     "FidelityModel",
     "FormatDetectionError",
     "KeplerianElements",
+    "LossyConversionWarning",
     "MeanElementSet",
     "Metadata",
+    "ModelApproximationWarning",
     "OrbitFormatsError",
+    "PrecisionLossWarning",
     "Provenance",
     "Source",
     "StateVector",
@@ -64,5 +77,6 @@ __all__ = [
     "read",
     "register_reader",
     "register_writer",
+    "warn_lossy",
     "write",
 ]
