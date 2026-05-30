@@ -15,6 +15,7 @@ from collections.abc import Iterable
 __all__ = [
     "AmbiguousFormatError",
     "FormatDetectionError",
+    "FrameRotationUnsupportedError",
     "OrbitFormatsError",
     "UnknownFormatError",
     "UnsupportedConversionError",
@@ -76,4 +77,23 @@ class UnsupportedConversionError(OrbitFormatsError):
         super().__init__(
             f"no conversion path from a {source_form} to {target_format!r} "
             f"(which expects a {target_form}); only same-form conversion is supported"
+        )
+
+
+class FrameRotationUnsupportedError(OrbitFormatsError):
+    """A conversion would require rotating between two distinct reference frames.
+
+    v0.1 tags and preserves reference frames but does not rotate between them (frame
+    rotation is deferred to a later version). A conversion that would need a rotation
+    raises this rather than performing a naive one. ``source_frame`` and ``target_frame``
+    name the two frames that differ.
+    """
+
+    def __init__(self, source_frame: str, target_frame: str) -> None:
+        self.source_frame = source_frame
+        self.target_frame = target_frame
+        super().__init__(
+            f"converting from frame {source_frame!r} to {target_frame!r} would require a "
+            "frame rotation, which is not supported; only same-frame conversion is "
+            "available in this version"
         )

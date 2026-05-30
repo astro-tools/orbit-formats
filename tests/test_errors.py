@@ -5,6 +5,7 @@ from __future__ import annotations
 from orbit_formats import (
     AmbiguousFormatError,
     FormatDetectionError,
+    FrameRotationUnsupportedError,
     OrbitFormatsError,
     UnknownFormatError,
     UnsupportedConversionError,
@@ -18,6 +19,7 @@ def test_every_error_descends_from_the_base() -> None:
     assert issubclass(AmbiguousFormatError, FormatDetectionError)
     assert issubclass(UnsupportedFormatError, OrbitFormatsError)
     assert issubclass(UnsupportedConversionError, OrbitFormatsError)
+    assert issubclass(FrameRotationUnsupportedError, OrbitFormatsError)
 
 
 def test_ambiguous_error_carries_the_candidates() -> None:
