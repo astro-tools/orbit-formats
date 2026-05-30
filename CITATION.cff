@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use orbit-formats in academic work, please cite it using the metadata below."
+title: orbit-formats
+abstract: >-
+  orbit-formats is a permissively-licensed Python library for reading, writing, and
+  losslessly converting between orbital state-vector and ephemeris file formats — TLE,
+  the CCSDS Navigation Data Message family, SP3, SPICE SPK, STK ephemeris, and GMAT
+  report. It reads each format into a single canonical in-memory representation and
+  emits an explicit, structured warning whenever a conversion cannot preserve
+  information.
+type: software
+authors:
+  - given-names: Dimitrije
+    family-names: Jankovic
+version: 0.1.0
+date-released: "2026-05-30"
+license: MIT
+repository-code: "https://github.com/astro-tools/orbit-formats"
+url: "https://github.com/astro-tools/orbit-formats"
+keywords:
+  - astrodynamics
+  - orbital-mechanics
+  - ephemeris
+  - ccsds
+  - tle
+  - space
