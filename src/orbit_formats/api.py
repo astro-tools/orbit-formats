@@ -1,0 +1,124 @@
+"""The public ``read`` / ``write`` / ``convert`` entry points.
+
+These tie the catalog, the detector, and the reader/writer registry together:
+
+- :func:`read` resolves the format (explicit or detected) and dispatches to the
+  registered reader, returning the appropriate canonical subtype.
+- :func:`write` resolves the target format (explicit or from the destination extension)
+  and dispatches to the registered writer, serialising to the destination.
+- :func:`convert` resolves the input to a canonical object (reading it first if given a
+  path) and returns it in the form the target format expects.
+
+A format with no registered reader/writer raises
+:class:`~orbit_formats.errors.UnsupportedFormatError`; cross-form conversion that has no
+available path raises :class:`~orbit_formats.errors.UnsupportedConversionError`.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from orbit_formats.canonical.base import Canonical
+from orbit_formats.canonical.elements import MeanElementSet
+from orbit_formats.canonical.ephemeris import Ephemeris
+from orbit_formats.canonical.state import StateVector
+from orbit_formats.detect import detect_format_from_source
+from orbit_formats.errors import (
+    UnknownFormatError,
+    UnsupportedConversionError,
+    UnsupportedFormatError,
+)
+from orbit_formats.formats import (
+    canonical_form,
+    extension_format,
+    is_writable,
+    normalize_format,
+)
+from orbit_formats.registry import get_reader, get_writer
+from orbit_formats.source import SourceInput, load_source
+
+__all__ = ["convert", "read", "write"]
+
+# The canonical form each v0.1 category type projects to, used to decide when a
+# conversion is a no-op (the object is already in the target format's preferred form).
+_FORM_BY_TYPE: dict[type[Canonical], str] = {
+    Ephemeris: "ephemeris",
+    StateVector: "state",
+    MeanElementSet: "mean-elements",
+}
+
+
+def read(source: SourceInput, *, format: str | None = None) -> Canonical:
+    """Read ``source`` into the appropriate canonical subtype.
+
+    ``source`` is a path or in-memory buffer; an explicit ``format=`` overrides detection.
+    Raises :class:`~orbit_formats.errors.UnsupportedFormatError` if the resolved format
+    has no registered reader, and the detection errors otherwise (see
+    :func:`~orbit_formats.detect.detect_format`).
+    """
+    src = load_source(source)
+    format_id = normalize_format(format) if format is not None else detect_format_from_source(src)
+    reader = get_reader(format_id)
+    if reader is None:
+        raise UnsupportedFormatError(f"no reader is registered for format {format_id!r}")
+    return reader(src)
+
+
+def write(
+    obj: Canonical, destination: str | os.PathLike[str], *, format: str | None = None
+) -> None:
+    """Write ``obj`` to ``destination`` in the given (or extension-inferred) format.
+
+    The target format comes from an explicit ``format=`` or, failing that, the
+    destination's extension. Raises
+    :class:`~orbit_formats.errors.UnsupportedFormatError` for a read-only target or one
+    with no registered writer, and :class:`~orbit_formats.errors.UnknownFormatError` if
+    no format can be resolved.
+    """
+    format_id = _resolve_write_format(format, destination)
+    if not is_writable(format_id):
+        raise UnsupportedFormatError(f"{format_id!r} is a read-only format and cannot be written")
+    writer = get_writer(format_id)
+    if writer is None:
+        raise UnsupportedFormatError(f"no writer is registered for format {format_id!r}")
+    Path(destination).write_bytes(writer(obj))
+
+
+def convert(source: SourceInput | Canonical, to: str, *, format: str | None = None) -> Canonical:
+    """Convert ``source`` to the canonical form the target format ``to`` expects.
+
+    ``source`` is a canonical object or a path/buffer (read first, with ``format=`` as the
+    read override). The result is a canonical object — serialise it with :func:`write`.
+    When ``source`` is already in the target's preferred form the same object is returned;
+    a cross-form conversion with no available path raises
+    :class:`~orbit_formats.errors.UnsupportedConversionError`.
+    """
+    target = normalize_format(to)
+    obj = source if isinstance(source, Canonical) else read(source, format=format)
+    source_form = _form_of(obj)
+    target_form = canonical_form(target)
+    if source_form == target_form:
+        return obj
+    # Cross-form routing (element and frame/time transforms) lives in the conversion
+    # graph; until a path is available the conversion is reported as unsupported.
+    raise UnsupportedConversionError(source_form, target, target_form)
+
+
+def _resolve_write_format(format: str | None, destination: str | os.PathLike[str]) -> str:
+    if format is not None:
+        return normalize_format(format)
+    suffix = Path(destination).suffix.lower() or None
+    from_extension = extension_format(suffix)
+    if from_extension is None:
+        raise UnknownFormatError(
+            "could not infer the target format from the destination; pass an explicit format="
+        )
+    return from_extension
+
+
+def _form_of(obj: Canonical) -> str:
+    form = _FORM_BY_TYPE.get(type(obj))
+    if form is None:
+        raise UnsupportedConversionError(type(obj).__name__, "unknown", "unknown")
+    return form
