@@ -36,7 +36,7 @@ def test_path_source_reads_the_file(tmp_path: Path) -> None:
 
 def test_str_source_is_treated_as_a_path(tmp_path: Path) -> None:
     target = tmp_path / "data.sp3"
-    target.write_text("#c\n")
+    target.write_bytes(b"#c\n")  # bytes, so newlines are not OS-translated on Windows
     src = load_source(str(target))
     assert src.read_text() == "#c\n"
     assert src.suffix == ".sp3"
