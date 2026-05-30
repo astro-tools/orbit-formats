@@ -23,6 +23,7 @@ __all__ = [
     "DroppedField",
     "DroppedFieldWarning",
     "LossyConversionWarning",
+    "MissingFieldWarning",
     "ModelApproximationWarning",
     "PrecisionLossWarning",
     "warn_lossy",
@@ -131,6 +132,29 @@ class ModelApproximationWarning(LossyConversionWarning):
         self.source_kind = source_kind
         self.target_kind = target_kind
         self.model = model
+
+
+class MissingFieldWarning(LossyConversionWarning):
+    """A canonical field the source did not provide, filled with NaN rather than fabricated.
+
+    The canonical form has a slot the source format left unpopulated — the archetype is a
+    GMAT report (or an SP3 file) that lists position but no velocity. The slot is filled
+    with NaN, never a guessed value, and this warning names exactly which fields are absent
+    so a caller can decide whether the gap matters. Distinct from
+    :class:`DroppedFieldWarning`, where the *target* cannot hold a value the source had;
+    here the *source* omitted a value the canonical form has room for.
+    """
+
+    def __init__(self, fields: Sequence[str], *, source_format: str | None = None) -> None:
+        names = tuple(fields)
+        whence = f" from the {source_format} source" if source_format else " from the source"
+        verb = "is" if len(names) == 1 else "are"
+        why = f"absent{whence.strip()}; filled with NaN, not fabricated"
+        super().__init__(
+            f"{', '.join(names)} {verb} absent{whence}; filled with NaN rather than fabricated",
+            dropped=tuple(DroppedField(name, why) for name in names),
+        )
+        self.source_format = source_format
 
 
 def warn_lossy(warning: LossyConversionWarning, *, stacklevel: int = 1) -> None:
