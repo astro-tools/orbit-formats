@@ -2,4 +2,11 @@
 
 A writer consumes a per-format fidelity model (produced directly, or adapted from a
 canonical object) and serialises it. One module per writable format.
+
+Importing this package imports each writer module so that registering a writer against the
+public surface is a one-time import side effect (see :mod:`orbit_formats.registry`). The
+per-format modules are still stubs; their imports here wire up registration for when they
+land.
 """
+
+from orbit_formats.writers import oem  # noqa: F401

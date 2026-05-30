@@ -1,0 +1,253 @@
+"""The static catalog of known formats — ids, signatures, extensions, and canonical form.
+
+This module is pure data and pure functions: it knows *what* formats exist, how to
+recognise each from a content signature, which file extensions hint at it, the canonical
+form it prefers (the shape :mod:`orbit_formats.convert` routes through), and whether it
+can be written. It deliberately depends on nothing else in the package, so the detector
+(:mod:`orbit_formats.detect`), the registry, and the public API can all build on it
+without a cycle.
+
+A format's *preferred canonical form* is one of: ``ephemeris`` (a Cartesian state-vector
+time series), ``state`` (a single Cartesian state), ``mean-elements`` (a TLE/OMM-style
+mean-element set), ``attitude`` (an attitude history), or ``conjunction`` (a close
+approach). The last two are reserved for the v0.2 category types.
+"""
+
+from __future__ import annotations
+
+import re
+from collections.abc import Callable
+from dataclasses import dataclass
+from enum import IntEnum
+
+__all__ = [
+    "FORMATS",
+    "Confidence",
+    "FormatSpec",
+    "canonical_form",
+    "extension_format",
+    "is_known_format",
+    "is_writable",
+    "known_format_ids",
+    "match_binary",
+    "score_text_formats",
+]
+
+
+class Confidence(IntEnum):
+    """How strongly a detector matched. The highest-confidence match wins."""
+
+    NONE = 0
+    HIGH = 1
+
+
+# A signature inspects the raw bytes (binary magic) and/or the decoded text prefix and
+# reports how confidently the format matched. ``text`` is ``None`` when the content did
+# not decode as text (i.e. it is binary).
+Signature = Callable[[bytes, "str | None"], Confidence]
+
+
+@dataclass(frozen=True, slots=True)
+class FormatSpec:
+    """One known format: its id, detection signature, extensions, and canonical form."""
+
+    id: str
+    canonical_form: str
+    extensions: tuple[str, ...] = ()
+    binary: bool = False
+    writable: bool = True
+    signature: Signature | None = None
+
+
+# --- signature detectors ---------------------------------------------------------------
+
+_TLE_LINE_LEN = 69
+
+
+def _tle_checksum_ok(line: str) -> bool:
+    """A TLE line ends with a mod-10 checksum: digits sum to themselves, ``-`` counts 1."""
+    check = line[68]
+    if not check.isdigit():
+        return False
+    total = sum(int(ch) if ch.isdigit() else 1 if ch == "-" else 0 for ch in line[:68])
+    return total % 10 == int(check)
+
+
+def _sig_tle(data: bytes, text: str | None) -> Confidence:
+    if text is None:
+        return Confidence.NONE
+    line1: str | None = None
+    line2: str | None = None
+    for raw in text.splitlines():
+        line = raw.rstrip()
+        if len(line) != _TLE_LINE_LEN or line[1] != " ":
+            continue
+        if line[0] == "1":
+            line1 = line
+        elif line[0] == "2":
+            line2 = line
+        if line1 is not None and line2 is not None:
+            break
+    if line1 is None or line2 is None:
+        return Confidence.NONE
+    # Matched line structure; require valid checksums and an agreeing catalog number so
+    # arbitrary text that happens to start "1 " / "2 " is not mistaken for a TLE.
+    if line1[2:7] == line2[2:7] and _tle_checksum_ok(line1) and _tle_checksum_ok(line2):
+        return Confidence.HIGH
+    return Confidence.NONE
+
+
+def _ccsds_signature(kvn_keyword: str, xml_root: str) -> Signature:
+    """A CCSDS NDM member is either KVN (``CCSDS_<TYPE>_VERS =``) or XML (root + namespace)."""
+    kvn_re = re.compile(rf"^\s*{kvn_keyword}\s*=", re.MULTILINE)
+    xml_open_re = re.compile(rf"<{xml_root}\b")
+
+    def signature(data: bytes, text: str | None) -> Confidence:
+        if text is None:
+            return Confidence.NONE
+        if kvn_re.search(text):
+            return Confidence.HIGH
+        if "urn:ccsds:" in text and xml_open_re.search(text):
+            return Confidence.HIGH
+        return Confidence.NONE
+
+    return signature
+
+
+_STK_RE = re.compile(r"^stk\.v\.\d", re.IGNORECASE)
+_RINEX_RE = re.compile(r"RINEX VERSION\s*/\s*TYPE")
+
+
+def _first_nonempty_line(text: str) -> str | None:
+    for raw in text.splitlines():
+        stripped = raw.strip()
+        if stripped:
+            return stripped
+    return None
+
+
+def _sig_sp3(data: bytes, text: str | None) -> Confidence:
+    if text is None:
+        return Confidence.NONE
+    first = _first_nonempty_line(text)
+    if first is not None and len(first) >= 2 and first[0] == "#" and first[1] in "abcd":
+        return Confidence.HIGH
+    return Confidence.NONE
+
+
+def _sig_stk(data: bytes, text: str | None) -> Confidence:
+    if text is None:
+        return Confidence.NONE
+    first = _first_nonempty_line(text)
+    return Confidence.HIGH if first is not None and _STK_RE.match(first) else Confidence.NONE
+
+
+def _sig_rinex(data: bytes, text: str | None) -> Confidence:
+    if text is None:
+        return Confidence.NONE
+    # The "RINEX VERSION / TYPE" label sits in the header label field of the first line.
+    return Confidence.HIGH if _RINEX_RE.search(text[:200]) else Confidence.NONE
+
+
+def _sig_spk(data: bytes, text: str | None) -> Confidence:
+    # A SPICE binary kernel opens with its DAF file-architecture id word.
+    head = data[:8]
+    return Confidence.HIGH if head.startswith((b"DAF/SPK", b"NAIF/DAF")) else Confidence.NONE
+
+
+# --- the catalog -----------------------------------------------------------------------
+
+# Order matters only for the rare case two text signatures tie; binary magic is checked
+# first by the detector regardless of position. The GMAT report has no signature — it is
+# recognised by extension or named with an explicit format=.
+FORMATS: tuple[FormatSpec, ...] = (
+    FormatSpec("spk", "ephemeris", (".bsp", ".spk"), binary=True, signature=_sig_spk),
+    FormatSpec("tle", "mean-elements", (".tle", ".3le"), signature=_sig_tle),
+    FormatSpec(
+        "ccsds-oem", "ephemeris", (".oem",), signature=_ccsds_signature("CCSDS_OEM_VERS", "oem")
+    ),
+    FormatSpec(
+        "ccsds-omm", "mean-elements", (".omm",), signature=_ccsds_signature("CCSDS_OMM_VERS", "omm")
+    ),
+    FormatSpec(
+        "ccsds-opm", "state", (".opm",), signature=_ccsds_signature("CCSDS_OPM_VERS", "opm")
+    ),
+    FormatSpec(
+        "ccsds-aem", "attitude", (".aem",), signature=_ccsds_signature("CCSDS_AEM_VERS", "aem")
+    ),
+    FormatSpec(
+        "ccsds-cdm", "conjunction", (".cdm",), signature=_ccsds_signature("CCSDS_CDM_VERS", "cdm")
+    ),
+    FormatSpec("sp3", "ephemeris", (".sp3",), signature=_sig_sp3),
+    FormatSpec("stk", "ephemeris", (".e", ".ephem"), signature=_sig_stk),
+    FormatSpec("gmat-report", "ephemeris", (".report",), signature=None),
+    FormatSpec(
+        "rinex-nav", "mean-elements", (".rnx", ".nav"), writable=False, signature=_sig_rinex
+    ),
+)
+
+_BY_ID: dict[str, FormatSpec] = {spec.id: spec for spec in FORMATS}
+_BY_EXTENSION: dict[str, str] = {ext: spec.id for spec in FORMATS for ext in spec.extensions}
+# RINEX navigation files also use the version-2 "<2-digit-year><system letter>" suffix,
+# e.g. ``.21n`` (GPS), ``.22g`` (GLONASS), ``.23l`` (Galileo).
+_RINEX_NAV_EXT_RE = re.compile(r"^\.\d\d[ngl]$")
+
+
+def is_known_format(format_id: str) -> bool:
+    """Whether ``format_id`` is a catalogued format."""
+    return format_id in _BY_ID
+
+
+def known_format_ids() -> tuple[str, ...]:
+    """All catalogued format ids, in catalog order."""
+    return tuple(spec.id for spec in FORMATS)
+
+
+def canonical_form(format_id: str) -> str:
+    """The canonical form ``format_id`` prefers. Assumes ``format_id`` is known."""
+    return _BY_ID[format_id].canonical_form
+
+
+def is_writable(format_id: str) -> bool:
+    """Whether ``format_id`` can be written. Assumes ``format_id`` is known."""
+    return _BY_ID[format_id].writable
+
+
+def extension_format(suffix: str | None) -> str | None:
+    """Map a file extension (with leading dot) to a format id, or ``None`` if unmapped.
+
+    Generic extensions (``.xml``, ``.txt``) are deliberately not mapped — they identify no
+    single format and must be resolved by content signature or an explicit ``format=``.
+    """
+    if suffix is None:
+        return None
+    lowered = suffix.lower()
+    if lowered in _BY_EXTENSION:
+        return _BY_EXTENSION[lowered]
+    if _RINEX_NAV_EXT_RE.match(lowered):
+        return "rinex-nav"
+    return None
+
+
+def match_binary(data: bytes) -> str | None:
+    """Check the binary-magic detectors against raw bytes, before any text decode."""
+    for spec in FORMATS:
+        if (
+            spec.binary
+            and spec.signature is not None
+            and spec.signature(data, None) != Confidence.NONE
+        ):
+            return spec.id
+    return None
+
+
+def score_text_formats(data: bytes, text: str) -> list[tuple[str, Confidence]]:
+    """Score every text-signature format against decoded ``text``; keep the matches."""
+    scored: list[tuple[str, Confidence]] = []
+    for spec in FORMATS:
+        if spec.binary or spec.signature is None:
+            continue
+        confidence = spec.signature(data, text)
+        if confidence != Confidence.NONE:
+            scored.append((spec.id, confidence))
+    return scored
