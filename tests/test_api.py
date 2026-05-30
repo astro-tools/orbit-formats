@@ -79,6 +79,10 @@ def _mean_set() -> MeanElementSet:
 
 
 def test_read_without_a_registered_reader_is_unsupported(isolated_registry: None) -> None:
+    # Empty the registry (and pin plugin auto-loading off) so no reader backs 'tle' — the
+    # real TLE reader registers itself otherwise. The fixture restores both afterwards.
+    registry_module._READERS.clear()
+    registry_module._plugins_loaded = True
     with pytest.raises(UnsupportedFormatError, match="no reader is registered for format 'tle'"):
         read(TLE)
 
