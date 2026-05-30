@@ -24,6 +24,7 @@ from orbit_formats.detect import detect_format
 from orbit_formats.errors import (
     AmbiguousFormatError,
     FormatDetectionError,
+    FrameRotationUnsupportedError,
     OrbitFormatsError,
     UnknownFormatError,
     UnsupportedConversionError,
@@ -55,6 +56,7 @@ __all__ = [
     "Ephemeris",
     "FidelityModel",
     "FormatDetectionError",
+    "FrameRotationUnsupportedError",
     "KeplerianElements",
     "LossyConversionWarning",
     "MeanElementSet",

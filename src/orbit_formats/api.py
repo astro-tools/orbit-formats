@@ -23,6 +23,7 @@ from orbit_formats.canonical.base import Canonical
 from orbit_formats.canonical.elements import MeanElementSet
 from orbit_formats.canonical.ephemeris import Ephemeris
 from orbit_formats.canonical.state import StateVector
+from orbit_formats.convert.graph import route
 from orbit_formats.detect import detect_format_from_source
 from orbit_formats.errors import (
     UnknownFormatError,
@@ -98,11 +99,14 @@ def convert(source: SourceInput | Canonical, to: str, *, format: str | None = No
     obj = source if isinstance(source, Canonical) else read(source, format=format)
     source_form = _form_of(obj)
     target_form = canonical_form(target)
-    if source_form == target_form:
-        return obj
-    # Cross-form routing (element and frame/time transforms) lives in the conversion
-    # graph; until a path is available the conversion is reported as unsupported.
-    raise UnsupportedConversionError(source_form, target, target_form)
+    # The conversion graph owns the routing decision: a same-form conversion returns the
+    # object unchanged (a later same-format write stays byte-lossless via source_native);
+    # a cross-form request with no available edge comes back as None and is reported as
+    # unsupported here, where the target format id for the error is in hand.
+    routed = route(obj, source_form, target_form)
+    if routed is None:
+        raise UnsupportedConversionError(source_form, target, target_form)
+    return routed
 
 
 def _resolve_write_format(format: str | None, destination: str | os.PathLike[str]) -> str:
