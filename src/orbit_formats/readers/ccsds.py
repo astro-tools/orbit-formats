@@ -15,7 +15,7 @@ fidelity model. The XML path and the rest of the NDM family land in v0.2.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import ClassVar
 
 import numpy as np
@@ -134,9 +134,14 @@ class OemFile(FidelityModel):
     """The faithful OEM fidelity model: the header plus every segment, in file order.
 
     Holding every field a same-format OEM write reconstructs from, so an OEM → OEM
-    round-trip stays lossless without polluting the canonical schema. ``ccsds_version`` is
-    the ``CCSDS_OEM_VERS`` value; ``creation_date`` / ``originator`` and the header
-    ``comments`` are the file-level header fields.
+    round-trip stays content-lossless without polluting the canonical schema.
+    ``ccsds_version`` is the ``CCSDS_OEM_VERS`` value; ``creation_date`` / ``originator``
+    and the header ``comments`` are the file-level header fields.
+
+    ``raw_bytes`` is the verbatim source, kept only when the read opted in via
+    ``retain_source=True`` (otherwise ``None``); it is a reference to the already-loaded
+    buffer, not a copy. The writer echoes it for a byte-identical same-format re-emit; with
+    it absent, the writer re-serialises the structured model (content-lossless).
     """
 
     format_name: ClassVar[str] = "ccsds-oem"
@@ -146,6 +151,7 @@ class OemFile(FidelityModel):
     creation_date: str | None = None
     originator: str | None = None
     comments: tuple[str, ...] = ()
+    raw_bytes: bytes | None = None
 
 
 def read_oem(source: Source) -> Ephemeris:
@@ -158,8 +164,13 @@ def read_oem(source: Source) -> Ephemeris:
     keyword, an unclosed block, a malformed state or covariance line, an unparseable epoch,
     or segments that disagree on frame / central body / time system (which cannot be
     concatenated into one canonical series without a transform v0.1 does not perform).
+
+    When the source opted into retention (``read(..., retain_source=True)``), the verbatim
+    bytes are kept on the fidelity model so a same-format write can reproduce them exactly.
     """
     oem = _OemParser(source.read_text().splitlines()).parse()
+    if source.retain:
+        oem = replace(oem, raw_bytes=source.read_bytes())
     return _to_ephemeris(oem)
 
 

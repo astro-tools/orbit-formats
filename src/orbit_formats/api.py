@@ -50,15 +50,24 @@ _FORM_BY_TYPE: dict[type[Canonical], str] = {
 }
 
 
-def read(source: SourceInput, *, format: str | None = None) -> Canonical:
+def read(
+    source: SourceInput, *, format: str | None = None, retain_source: bool = False
+) -> Canonical:
     """Read ``source`` into the appropriate canonical subtype.
 
     ``source`` is a path or in-memory buffer; an explicit ``format=`` overrides detection.
     Raises :class:`~orbit_formats.errors.UnsupportedFormatError` if the resolved format
     has no registered reader, and the detection errors otherwise (see
     :func:`~orbit_formats.detect.detect_format`).
+
+    Set ``retain_source=True`` to keep the raw source bytes on the result's
+    ``source_native`` fidelity model, so a later :func:`write` back to the same format
+    reproduces the input **byte-for-byte**. It defaults to ``False`` — an ordinary read
+    holds no extra copy, and a same-format write is then content-lossless (every field
+    preserved, canonically formatted) rather than byte-identical. Only formats with a
+    verbatim-capable fidelity model (the OEM reader today) honour it.
     """
-    src = load_source(source)
+    src = load_source(source, retain=retain_source)
     format_id = normalize_format(format) if format is not None else detect_format_from_source(src)
     reader = get_reader(format_id)
     if reader is None:
