@@ -89,11 +89,12 @@ jobs:
       - run: pip install .
       - run: python -c "import orbit_formats"
 
-  # Cross-validate the OEM writer against the ccsds-ndm oracle. ccsds-ndm is GPL-3.0, so
-  # it is never a runtime, extra, or dev dependency, never in uv.lock, and never shipped:
-  # it is installed transiently here with `uv run --with` and used only by this job's
-  # tests (which `importorskip` it, so they skip everywhere else). This keeps the whole
-  # distributed/locked project GPL-free while still validating against a reference impl.
+  # Cross-validate the CCSDS NDM writers (OEM / OMM / OPM) against the ccsds-ndm oracle.
+  # ccsds-ndm is GPL-3.0, so it is never a runtime, extra, or dev dependency, never in
+  # uv.lock, and never shipped: it is installed transiently here with `uv run --with` and
+  # used only by this job's tests (which `importorskip` it, so they skip everywhere else).
+  # This keeps the whole distributed/locked project GPL-free while still validating against
+  # a reference impl.
   oracle:
     name: oracle cross-validation (ccsds-ndm)
     runs-on: ubuntu-latest
@@ -108,7 +109,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
       - run: uv sync --all-groups
-      - run: uv run --with ccsds-ndm pytest tests/test_ccsds_oem_oracle.py -v
+      - run: uv run --with ccsds-ndm pytest tests/test_ccsds_oem_oracle.py tests/test_ccsds_omm_oracle.py tests/test_ccsds_opm_oracle.py -v
 
   # Validate CITATION.cff against the Citation File Format v1.2.0 schema. cffconvert
   # is installed standalone because it is a CI-only schema check, not part of the dev
