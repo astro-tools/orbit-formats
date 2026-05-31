@@ -241,13 +241,19 @@ def xml_bytes_from_oemfile(oem: OemFile) -> bytes:
 
 
 def _require_for_xml(keyword: str, value: str | None) -> str:
+    """Return ``value`` for a header field the NDM/XML schema requires, or warn + placeholder.
+
+    Shared by the OEM and OMM XML writers: NDM/XML requires the header ``CREATION_DATE`` and
+    ``ORIGINATOR`` that KVN treats as optional, so a source that does not carry one is
+    placeholdered and the loss reported, never dropped silently.
+    """
     if value is not None:
         return value
     warn_lossy(
         LossyConversionWarning(
-            f"the ephemeris does not supply the OEM-XML-required {keyword}; "
+            f"the source does not supply the NDM/XML-required {keyword}; "
             f"wrote the placeholder {_PLACEHOLDER!r}",
-            dropped=(DroppedField(keyword, "the canonical ephemeris did not carry it"),),
+            dropped=(DroppedField(keyword, "the canonical object did not carry it"),),
         ),
         stacklevel=2,
     )
