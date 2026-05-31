@@ -189,7 +189,7 @@ FORMATS: tuple[FormatSpec, ...] = (
     FormatSpec(
         "ccsds-cdm", "conjunction", (".cdm",), signature=_ccsds_signature("CCSDS_CDM_VERS", "cdm")
     ),
-    FormatSpec("sp3", "ephemeris", (".sp3",), signature=_sig_sp3),
+    FormatSpec("sp3", "ephemeris", (".sp3",), writable=False, signature=_sig_sp3),
     FormatSpec("stk-ephemeris", "ephemeris", (".e", ".ephem"), signature=_sig_stk),
     FormatSpec("gmat-report", "ephemeris", (".report",), signature=None),
     FormatSpec(
