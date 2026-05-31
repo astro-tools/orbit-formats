@@ -66,6 +66,13 @@ eph = read("orbit.oem", retain_source=True)
 write(eph, "exact-copy.oem")          # byte-identical to orbit.oem
 ```
 
+Pass `frame=` to rotate the Cartesian state into another reference frame on the way out — a
+lossless rotation across TEME, EME2000 / J2000, GCRF, ICRF, and ITRF:
+
+```python
+write(convert("orbit.oem", to="ccsds-oem", frame="J2000"), "j2000.oem")
+```
+
 A conversion the library cannot do without modelling — a TLE's mean elements to an ephemeris,
 which needs a propagation — raises `UnsupportedConversionError` rather than guessing. The
 [conversion-capability matrix](conversion-matrix.md) lists what is supported.
