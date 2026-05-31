@@ -1,0 +1,20 @@
+#dP2024  8 17  0  0  0.00000000       2 ORBIT IGb14 FIT  IGS
+## 2326 518400.00000000   300.00000000 60539 0.0000000000000
++    2   G01R02  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0
+++         5  8  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0
+%c M  cc UTC ccc cccc cccc cccc cccc ccccc ccccc ccccc ccccc
+%c cc cc ccc ccc cccc cccc cccc cccc ccccc ccccc ccccc ccccc
+%f  1.2500000  1.025000000  0.00000000000  0.000000000000000
+%f  0.0000000  0.000000000  0.00000000000  0.000000000000000
+%i    0    0    0    0      0      0      0      0         0
+%i    0    0    0    0      0      0      0      0         0
+/* SP3-d sample for orbit-formats tests, not a real IGS product
+/* GPS and GLONASS satellites, two epochs, position only
+/* frame IGb14, time system UTC, 5-minute interval
+*  2024  8 17  0  0  0.00000000
+PG01  -8000.000000  20000.000000  16000.000000    100.000000
+PR02  12000.000000  19000.000000 -14000.000000    300.000000
+*  2024  8 17  0  5  0.00000000
+PG01  -8050.000000  19950.000000  16050.000000    100.500000
+PR02  12050.000000  18950.000000 -14050.000000    300.500000
+EOF
