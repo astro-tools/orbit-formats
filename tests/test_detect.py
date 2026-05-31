@@ -138,6 +138,7 @@ def test_catalog_helpers() -> None:
     assert canonical_form("tle") == "mean-elements"
     assert is_writable("ccsds-oem") is True
     assert is_writable("rinex-nav") is False
+    assert is_writable("gmat-report") is False  # read-only: GMAT writes reports, we only read
     assert extension_format(".oem") == "ccsds-oem"
     assert extension_format(".21n") == "rinex-nav"  # version-2 RINEX nav suffix
     assert extension_format(".xml") is None  # too generic to map
