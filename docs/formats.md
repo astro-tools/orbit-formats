@@ -14,12 +14,13 @@ fidelity model rather than dropped.
 | CCSDS OMM (KVN + XML) | `ccsds-omm` | ✓ | ✓ | mean-element set |
 | CCSDS OPM (KVN + XML) | `ccsds-opm` | ✓ | ✓ | state vector |
 | GMAT report | `gmat-report` | ✓ | — | ephemeris / state |
+| STK ephemeris | `stk-ephemeris` | ✓ | ✓ | ephemeris |
 
 TLE and OMM share the **mean-element set** canonical form, so they convert into each other:
-read a TLE and write an OMM, or read an OMM and write a TLE. Other formats — SP3, STK
-ephemeris, the rest of the CCSDS NDM family (AEM / CDM), SPICE SPK, RINEX navigation —
-are recognised by detection but not yet read or written; a `read` of one raises
-`UnsupportedFormatError`. They land in later versions.
+read a TLE and write an OMM, or read an OMM and write a TLE. Other formats — SP3, the rest
+of the CCSDS NDM family (AEM / CDM), SPICE SPK, RINEX navigation — are recognised by
+detection but not yet read or written; a `read` of one raises `UnsupportedFormatError`. They
+land in later versions.
 
 ## TLE / 3LE — `tle`
 
@@ -140,3 +141,35 @@ mission-sequence boundaries are skipped.
   spacecraft's state, Keplerian elements, mass, and any other parameter.
 - **Detection:** the GMAT report has *no* content signature. It is recognised by the
   `.report` extension or named with an explicit `format="gmat-report"`.
+
+## STK ephemeris — `stk-ephemeris`
+
+An AGI / STK text ephemeris (`.e`) reads into an `Ephemeris`; GMAT's STK-TimePosVel writer
+emits the same format. A `stk.v.X.Y` banner and optional `# …` comments precede a
+`BEGIN Ephemeris` block of whitespace-separated `KEY VALUE` metadata, then an
+`EphemerisTimePosVel` (or `EphemerisTimePosVelAcc`) data section of records — an
+offset-from-epoch in seconds plus the position / velocity (and optional acceleration)
+triplet — closed by `END Ephemeris`.
+
+- **Expresses:** a Cartesian state-vector time series, tagged with the frame
+  (`CoordinateSystem`) and central body (`CentralBody`) from the meta block. Each record's
+  offset is made absolute against `ScenarioEpoch`.
+- **Time scale:** a `.e` declares none, so the canonical scale is tagged **UTC** — GMAT's
+  default for the STK writer, and the only sensible default. The raw `ScenarioEpoch` text is
+  kept on `source_native` so a consumer whose mission pinned another scale can re-interpret
+  it. `ScenarioEpoch` is read either as a Gregorian `DD Mon YYYY HH:MM:SS.fff` value or as a
+  numeric GMAT Modified Julian Date.
+- **Preserved on `source_native`, not in the canonical form:** acceleration columns (from the
+  `…Acc` data section — the canonical `Ephemeris` holds position and velocity only), the
+  version banner, the header comments, and every meta keyword verbatim (including
+  `NumberOfEphemerisPoints`, `DistanceUnit`, and any the canonical form does not interpret).
+- **Writing** picks one of three paths automatically, mirroring the OEM writer: a
+  byte-identical re-emit (with `retain_source=True`), a content-lossless re-serialisation of
+  the fidelity model, or — for a synthesised or cross-format ephemeris with no STK
+  `source_native` — a fresh `.e` built from the canonical fields, warning for each
+  `.e`-required field (`CentralBody`, `CoordinateSystem`, `ScenarioEpoch`) the canonical form
+  cannot supply. See [Lossy conversions](lossy-conversions.md).
+- **Detection:** the `stk.v.X.Y` banner on the first non-comment line, or the `.e` / `.ephem`
+  extension. Only the banner, `BEGIN Ephemeris`, `ScenarioEpoch`, and a recognised data
+  section are mandatory; other data-section variants (e.g. `EphemerisTimePos`) raise
+  `MalformedSourceError`.
