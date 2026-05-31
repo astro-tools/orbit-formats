@@ -104,7 +104,7 @@ class OemCovariance:
     ``matrix`` holds the 21 lower-triangular elements of the symmetric 6x6 position /
     velocity covariance in row order, ``epoch`` the matrix epoch, and ``cov_ref_frame`` the
     frame it is expressed in when the block names one. The canonical ``Ephemeris`` has no
-    covariance slot in v0.1, so covariance survives only here, on the fidelity model.
+    covariance slot, so covariance survives only here, on the fidelity model.
     """
 
     epoch: np.datetime64
@@ -595,9 +595,9 @@ def _require_consistent_segments(segments: tuple[OemSegment, ...]) -> None:
 
     The segments are concatenated into a single Cartesian ephemeris under one metadata
     spine, so they must agree on the reference frame, central body, and time system.
-    Concatenating states tagged with different values would be physically meaningless (and
-    would need a frame/time transform v0.1 does not perform), so a disagreement raises
-    rather than silently producing a wrong ephemeris.
+    Concatenating states tagged with different values would be physically meaningless (the
+    reader does not transform segments into a common frame and time system), so a
+    disagreement raises rather than silently producing a wrong ephemeris.
     """
     first = segments[0].meta
     for segment in segments[1:]:

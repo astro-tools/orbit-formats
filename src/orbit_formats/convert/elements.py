@@ -26,7 +26,7 @@ __all__ = [
     "keplerian_to_cartesian",
 ]
 
-# Standard gravitational parameters (km^3/s^2) for the central bodies a v0.1 state is
+# Standard gravitational parameters (km^3/s^2) for the central bodies a state is
 # likely tagged with. Keyed by the upper-cased body name; the table is deliberately small
 # and easily extended as more central bodies appear in real data.
 _GM_KM3_S2: dict[str, float] = {

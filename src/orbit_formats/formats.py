@@ -10,7 +10,7 @@ without a cycle.
 A format's *preferred canonical form* is one of: ``ephemeris`` (a Cartesian state-vector
 time series), ``state`` (a single Cartesian state), ``mean-elements`` (a TLE/OMM-style
 mean-element set), ``attitude`` (an attitude history), or ``conjunction`` (a close
-approach). The last two are reserved for the v0.2 category types.
+approach). The last two are reserved for category types that are not yet implemented.
 """
 
 from __future__ import annotations

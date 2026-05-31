@@ -62,7 +62,7 @@ def normalize_frame(name: str) -> str | None:
     """The canonical frame id for ``name`` (case- and whitespace-insensitive), or ``None``.
 
     Returns ``None`` for any frame outside the supported set, so a caller can tell a known
-    frame from one this version does not rotate.
+    frame from one outside the supported set.
     """
     return _FRAME_ALIASES.get(name.strip().upper())
 

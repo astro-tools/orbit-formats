@@ -1,9 +1,9 @@
-"""``Tracking`` — a tracking-data set (CCSDS TDM / RINEX). Reserved for v0.2.
+"""``Tracking`` — a tracking-data set (CCSDS TDM / RINEX). Not yet implemented.
 
-Declared now so the canonical package layout matches the charter's federated family; the
-v0.1 milestone ships :class:`~orbit_formats.canonical.ephemeris.Ephemeris`,
+Declared now so the canonical package layout matches the charter's federated family,
+alongside the implemented :class:`~orbit_formats.canonical.ephemeris.Ephemeris`,
 :class:`~orbit_formats.canonical.state.StateVector`, and
-:class:`~orbit_formats.canonical.elements.MeanElementSet` only.
+:class:`~orbit_formats.canonical.elements.MeanElementSet`.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ __all__ = ["Tracking"]
 
 
 class Tracking:
-    """Tracking-data category — lands in orbit-formats v0.2."""
+    """Tracking-data category — not yet implemented."""
 
     def __init__(self, *args: object, **kwargs: object) -> None:
-        raise NotImplementedError("Tracking lands in orbit-formats v0.2")
+        raise NotImplementedError("the Tracking category is not yet implemented")

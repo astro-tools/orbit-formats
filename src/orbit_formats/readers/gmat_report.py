@@ -13,8 +13,8 @@ column, every cell, verbatim strings — then **adapted** into a canonical
 epoch column and the first Cartesian state. The report's frame and time scale are tagged
 **only where the column names declare them** (the coordinate-system segment, the epoch-scale
 suffix); a column GMAT writes without a coordinate system, or in GMAT's ``A1`` scale that the
-canonical spine does not carry, leaves that tag unset rather than guessed. Frames are tagged,
-never rotated (per the v0.1 scope). Every column the canonical form cannot place — a second
+canonical spine does not carry, leaves that tag unset rather than guessed. The reader tags
+frames, it never rotates them. Every column the canonical form cannot place — a second
 spacecraft, Keplerian elements, mass — is preserved on the fidelity model, never dropped.
 
 The GMAT report has no content signature, so it is detected by its ``.report`` extension or
@@ -109,8 +109,8 @@ class _StateGroup:
     """One ``(resource, coordinate system)`` Cartesian state, and where each component sits.
 
     ``coordinate_system`` is ``None`` when the report names the component without a coordinate
-    system (``LEOsat.X``) — GMAT's default frame, which the report does not declare and v0.1
-    does not infer. ``components`` maps each present component (``X`` … ``VZ``) to its column
+    system (``LEOsat.X``) — GMAT's default frame, which the report does not declare and the
+    reader does not infer. ``components`` maps each present component (``X`` … ``VZ``) to its column
     index; a component absent from the report is absent from the map.
     """
 
@@ -386,7 +386,7 @@ def _build_metadata(group: _StateGroup, epoch_column: _EpochColumn) -> Metadata:
     it); ``time_scale`` is the epoch scale when the canonical spine carries it (GMAT's ``A1``
     is not one, so it stays ``None`` with the raw column name preserved on the fidelity model);
     ``object_name`` is the resource. The central body is not declared by a report and is not
-    inferred (v0.1).
+    inferred.
     """
     time_scale = epoch_column.scale if epoch_column.scale in TIME_SCALES else None
     return Metadata(
