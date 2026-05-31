@@ -28,9 +28,11 @@ __all__ = [
 ]
 
 # A reader turns a resolved source into a canonical object; a writer serialises a
-# canonical object to the format's bytes.
+# canonical object to the format's bytes. A writer also receives the destination's
+# extension (lowercased, with the dot, or ``None`` for a destination-less call) so a format
+# with more than one notation — CCSDS OEM in KVN vs XML — can pick from it.
 Reader = Callable[[Source], Canonical]
-Writer = Callable[[Canonical], bytes]
+Writer = Callable[[Canonical, "str | None"], bytes]
 
 _READERS: dict[str, Reader] = {}
 _WRITERS: dict[str, Writer] = {}

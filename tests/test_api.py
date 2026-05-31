@@ -133,8 +133,9 @@ def test_write_to_a_read_only_format_is_rejected(isolated_registry: None, tmp_pa
 def test_write_dispatches_and_serialises_to_the_destination(
     isolated_registry: None, tmp_path: Path
 ) -> None:
-    def fake_writer(obj: Canonical) -> bytes:
+    def fake_writer(obj: Canonical, suffix: str | None = None) -> bytes:
         assert isinstance(obj, Ephemeris)
+        assert suffix == ".oem"  # the destination extension is threaded to the writer
         return b"OEM-PAYLOAD"
 
     register_writer("ccsds-oem", fake_writer)
@@ -202,9 +203,9 @@ def test_register_reader_rejects_an_unknown_format(isolated_registry: None) -> N
 
 def test_register_writer_rejects_an_unknown_format(isolated_registry: None) -> None:
     with pytest.raises(UnknownFormatError):
-        register_writer("bogus", lambda obj: b"")
+        register_writer("bogus", lambda obj, suffix: b"")
 
 
 def test_register_writer_rejects_a_read_only_format(isolated_registry: None) -> None:
     with pytest.raises(UnsupportedFormatError, match="read-only"):
-        register_writer("rinex-nav", lambda obj: b"")
+        register_writer("rinex-nav", lambda obj, suffix: b"")

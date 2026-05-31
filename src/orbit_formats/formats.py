@@ -101,7 +101,15 @@ def _sig_tle(data: bytes, text: str | None) -> Confidence:
 
 
 def _ccsds_signature(kvn_keyword: str, xml_root: str) -> Signature:
-    """A CCSDS NDM member is either KVN (``CCSDS_<TYPE>_VERS =``) or XML (root + namespace)."""
+    """A CCSDS NDM member is either KVN (``CCSDS_<TYPE>_VERS =``) or XML.
+
+    KVN opens with the ``CCSDS_<TYPE>_VERS =`` header keyword. XML carries the same
+    ``CCSDS_<TYPE>_VERS`` marker in its root element's ``id`` attribute
+    (``<oem id="CCSDS_OEM_VERS" ...>``); requiring the root element *and* that marker
+    recognises both the namespaced form and the unqualified form orbit-formats' own
+    serialiser emits — where the ``urn:ccsds:`` namespace is absent — while never matching a
+    different NDM member (each keys on its own root and marker).
+    """
     kvn_re = re.compile(rf"^\s*{kvn_keyword}\s*=", re.MULTILINE)
     xml_open_re = re.compile(rf"<{xml_root}\b")
 
@@ -110,7 +118,7 @@ def _ccsds_signature(kvn_keyword: str, xml_root: str) -> Signature:
             return Confidence.NONE
         if kvn_re.search(text):
             return Confidence.HIGH
-        if "urn:ccsds:" in text and xml_open_re.search(text):
+        if xml_open_re.search(text) and (kvn_keyword in text or "urn:ccsds:" in text):
             return Confidence.HIGH
         return Confidence.NONE
 
