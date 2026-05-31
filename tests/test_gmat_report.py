@@ -21,8 +21,10 @@ from orbit_formats import (
     MalformedSourceError,
     MissingFieldWarning,
     StateVector,
+    UnsupportedFormatError,
     detect_format,
     read,
+    write,
 )
 from orbit_formats.readers.gmat_report import GmatReportFile, read_gmat_report
 from orbit_formats.registry import get_reader
@@ -385,3 +387,10 @@ def test_non_state_and_incomplete_columns_are_skipped_for_the_first_complete_sta
     assert isinstance(report, GmatReportFile)
     assert "Index" in report.columns
     assert "Probe.EarthMJ2000Eq.X" in report.columns
+
+
+def test_writing_a_gmat_report_is_rejected_as_read_only(tmp_path: Path) -> None:
+    # A GMAT ReportFile is a GMAT output we only read; the format is catalogued read-only.
+    eph = read(REPORT_FULL, format="gmat-report")
+    with pytest.raises(UnsupportedFormatError, match="read-only"):
+        write(eph, tmp_path / "out.report")

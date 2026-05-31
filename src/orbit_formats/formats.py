@@ -191,7 +191,7 @@ FORMATS: tuple[FormatSpec, ...] = (
     ),
     FormatSpec("sp3", "ephemeris", (".sp3",), writable=False, signature=_sig_sp3),
     FormatSpec("stk-ephemeris", "ephemeris", (".e", ".ephem"), signature=_sig_stk),
-    FormatSpec("gmat-report", "ephemeris", (".report",), signature=None),
+    FormatSpec("gmat-report", "ephemeris", (".report",), writable=False, signature=None),
     FormatSpec(
         "rinex-nav", "mean-elements", (".rnx", ".nav"), writable=False, signature=_sig_rinex
     ),
