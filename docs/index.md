@@ -27,12 +27,12 @@ depend on as the single source of format truth.
 - Not a route from a TLE's mean elements to an osculating state — that is a propagation,
   not a format conversion.
 
-## Status
+## What it reads and writes
 
-orbit-formats is in early development. The package skeleton and tooling are in place;
-format readers, writers, and the conversion layer land incrementally. See the
-[changelog](https://github.com/astro-tools/orbit-formats/blob/main/CHANGELOG.md) for
-released functionality.
+orbit-formats reads TLE / 3LE, CCSDS OEM (KVN), and GMAT report files, writes CCSDS OEM,
+converts between the canonical forms where that is meaningful, and round-trips OEM
+losslessly. See [Formats](formats.md) for what each can and cannot express, and the
+[conversion-capability matrix](conversion-matrix.md) for what converts to what.
 
 ## Installation
 
@@ -40,4 +40,19 @@ released functionality.
 pip install orbit-formats
 ```
 
-See [Getting started](getting-started.md).
+## Explore
+
+- **[Getting started](getting-started.md)** — read a file, project to a DataFrame, convert
+  and write, catch a lossy warning.
+- **[Canonical representation](canonical-representation.md)** — the two-layer model and the
+  DataFrame schema downstream consumers adopt.
+- **[Formats](formats.md)** — the per-format reference.
+- **[Lossy conversions](lossy-conversions.md)** — the lossless-round-trip and
+  lossy-warning contract, and the frame / time-transform scope.
+- **[Conversion-capability matrix](conversion-matrix.md)** — what converts to what, and at
+  what cost.
+- **[Command-line interface](cli.md)** and **[API reference](api.md)**.
+
+See the
+[changelog](https://github.com/astro-tools/orbit-formats/blob/main/CHANGELOG.md) for
+released functionality.
