@@ -4,17 +4,27 @@ the no-silent-loss contract every converter must satisfy."""
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
 
+import numpy as np
 import pytest
 
 from orbit_formats import (
     DroppedField,
     DroppedFieldWarning,
+    Ephemeris,
     LossyConversionWarning,
+    Metadata,
     ModelApproximationWarning,
     PrecisionLossWarning,
+    convert,
+    read,
     warn_lossy,
 )
+from orbit_formats.formats import is_writable, known_format_ids
+from orbit_formats.registry import get_writer
+from orbit_formats.writers.oem import write_oem
 
 CONCRETE_WARNINGS = [DroppedFieldWarning, ModelApproximationWarning, PrecisionLossWarning]
 
@@ -100,48 +110,130 @@ def test_each_warning_is_catchable_by_its_own_type(cls: type[LossyConversionWarn
         warn_lossy(_sample(cls))
 
 
-# --- the no-silent-loss meta-test --------------------------------------------------
+# --- the no-silent-loss meta-test, driven by the real v0.1 surface -----------------
 #
-# Representative converters for the three conversion semantics decided at kickoff. A
-# same-format write recovers full fidelity via source_native and stays warn-free; a
-# cross-format projection warns per field the target cannot hold; a cross-category step
-# warns on the model approximation. The real converters replace these as they land,
-# reusing the same assert_no_silent_loss fixture.
+# The no-silent-loss contract (assert_no_silent_loss) must hold for every v0.1 operation
+# that can drop information: the registered writers, a reader that NaN-fills an absent
+# canonical field, and the conversion-graph routing. Each case below pairs a *real*
+# operation with whether it loses information; ``writer_format`` marks the cases that
+# exercise a registered writer. The coverage guard
+# (:func:`test_meta_test_covers_every_registered_writer`) then asserts every registered
+# writer has both a lossless and a lossy case, so a writer added in a later version
+# cannot quietly join the surface without proving the contract.
+#
+# The third kickoff semantic — a cross-category model step (mean elements -> a state via
+# SGP4) — has no instance in v0.1: such a conversion needs a propagator and is refused
+# with UnsupportedConversionError, never silently approximated (test_api and
+# test_convert_graph assert that refusal). It returns here once v0.2 lands the
+# mean-elements -> ephemeris edge.
 
+GOLDEN_OEM = Path(__file__).parent / "data" / "oem" / "golden_roundtrip.oem"
 
-def _same_format_roundtrip() -> object:
-    """A same-format write recovers full fidelity via source_native — nothing is lost."""
-    return b"<bytes>"
-
-
-def _cross_format_projection() -> object:
-    """A projection to a target that cannot hold every field warns per dropped field."""
-    warn_lossy(DroppedFieldWarning("covariance", target_format="ccsds-oem"))
-    return b"<bytes>"
-
-
-def _cross_category_model_step() -> object:
-    """A mean-elements to state conversion warns on the model step."""
-    warn_lossy(
-        ModelApproximationWarning(
-            source_kind="mean elements", target_kind="state", fields=["state"], model="SGP4"
-        )
-    )
-    return b"<bytes>"
-
-
-@pytest.mark.parametrize(
-    ("conversion", "loses"),
-    [
-        (_same_format_roundtrip, False),
-        (_cross_format_projection, True),
-        (_cross_category_model_step, True),
-    ],
+# A single-row GMAT report with a complete state (no NaN-fill) and a position-only one
+# (velocity absent -> MissingFieldWarning) — minimal and self-contained.
+_GMAT_REPORT_FULL = (
+    b"Sat.UTCGregorian   Sat.EarthMJ2000Eq.X   Sat.EarthMJ2000Eq.Y   "
+    b"Sat.EarthMJ2000Eq.Z   Sat.EarthMJ2000Eq.VX   Sat.EarthMJ2000Eq.VY   "
+    b"Sat.EarthMJ2000Eq.VZ\n"
+    b"26 Nov 2026 12:00:00.000   7000.0   0.0   0.0   0.0   7.5   0.0\n"
 )
-def test_no_converter_loses_information_without_warning(
-    conversion: Callable[[], object],
-    loses: bool,
+_GMAT_REPORT_POSITION_ONLY = (
+    b"Sat.UTCGregorian   Sat.EarthMJ2000Eq.X   Sat.EarthMJ2000Eq.Y   Sat.EarthMJ2000Eq.Z\n"
+    b"26 Nov 2026 12:00:00.000   7000.0   0.0   0.0\n"
+)
+
+
+@dataclass(frozen=True)
+class _MetaCase:
+    """One real-surface operation and whether it drops information.
+
+    ``writer_format`` is the format id when the case exercises a registered writer (so the
+    coverage guard can confirm every writer is represented), and ``None`` otherwise.
+    """
+
+    label: str
+    operation: Callable[[], object]
+    loses: bool
+    writer_format: str | None = None
+
+
+def _oem_ephemeris() -> Ephemeris:
+    """A canonical ephemeris read from the OEM golden (carries an OemFile source_native)."""
+    eph = read(GOLDEN_OEM.read_bytes())
+    assert isinstance(eph, Ephemeris)
+    return eph
+
+
+def _incomplete_oem_ephemeris() -> Ephemeris:
+    """An ephemeris missing OBJECT_ID and TIME_SYSTEM — an OEM write must warn for each."""
+    return Ephemeris(
+        metadata=Metadata(object_name="SAT", central_body="EARTH", reference_frame="EME2000"),
+        epochs=np.array(["2024-01-01T00:00:00"], dtype="datetime64[ns]"),
+        positions=np.array([[7000.0, 0.0, 0.0]]),
+        velocities=np.array([[0.0, 7.5, 0.0]]),
+    )
+
+
+_META_CASES = [
+    _MetaCase(
+        "ccsds-oem write: content-lossless re-serialise",
+        lambda: write_oem(_oem_ephemeris()),
+        loses=False,
+        writer_format="ccsds-oem",
+    ),
+    _MetaCase(
+        "ccsds-oem write: synthesised, missing required META",
+        lambda: write_oem(_incomplete_oem_ephemeris()),
+        loses=True,
+        writer_format="ccsds-oem",
+    ),
+    _MetaCase(
+        "gmat-report read: complete state",
+        lambda: read(_GMAT_REPORT_FULL, format="gmat-report"),
+        loses=False,
+    ),
+    _MetaCase(
+        "gmat-report read: position only (velocity NaN-filled)",
+        lambda: read(_GMAT_REPORT_POSITION_ONLY, format="gmat-report"),
+        loses=True,
+    ),
+    _MetaCase(
+        "convert: same-form ephemeris -> ccsds-oem",
+        lambda: convert(_oem_ephemeris(), to="ccsds-oem"),
+        loses=False,
+    ),
+]
+
+
+def _registered_writer_formats() -> set[str]:
+    """Every catalogued writable format that has a writer registered."""
+    return {fid for fid in known_format_ids() if is_writable(fid) and get_writer(fid) is not None}
+
+
+@pytest.mark.parametrize("case", _META_CASES, ids=lambda case: case.label)
+def test_no_surface_operation_loses_information_without_warning(
+    case: _MetaCase,
     assert_no_silent_loss: Callable[..., None],
 ) -> None:
-    """Information-dropping conversions raise a structured warning; lossless ones stay quiet."""
-    assert_no_silent_loss(conversion, loses=loses)
+    """Every real v0.1 surface operation warns exactly when it drops information."""
+    assert_no_silent_loss(case.operation, loses=case.loses)
+
+
+def test_meta_test_covers_every_registered_writer() -> None:
+    """Each registered writer has both a lossless and a lossy no-silent-loss case.
+
+    This is the future-proofing guard: a writer added later (the v0.2 NDM family) fails
+    the suite until it gains both a complete (warn-free) and an information-dropping
+    (warns) case in ``_META_CASES`` — so no writer can join the surface without proving
+    the no-silent-loss contract end to end.
+    """
+    registered = _registered_writer_formats()
+    assert registered, "expected at least one registered writer on the v0.1 surface"
+    for fid in sorted(registered):
+        cases = [case for case in _META_CASES if case.writer_format == fid]
+        assert any(not case.loses for case in cases), (
+            f"registered writer {fid!r} has no lossless no-silent-loss case"
+        )
+        assert any(case.loses for case in cases), (
+            f"registered writer {fid!r} has no information-dropping no-silent-loss case"
+        )
