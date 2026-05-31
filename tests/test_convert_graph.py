@@ -99,6 +99,17 @@ def test_require_same_frame_rejects_a_cross_frame_rotation() -> None:
     assert "frame rotation" in str(excinfo.value)
 
 
+def test_no_v01_conversion_silently_rotates_a_frame() -> None:
+    # The frame-rotation boundary holds end to end on the v0.1 surface: a same-form
+    # conversion returns the object with its frame intact (never rotated toward a target),
+    # and the only cross-form route raises (see the unsupported-conversion test above)
+    # rather than transforming. require_same_frame is the wired-in guard for v0.2's
+    # frame-crossing edges; until then no convert path can rotate silently.
+    eme2000 = _ephemeris(frame="EME2000")
+    routed = convert(eme2000, to="ccsds-oem")  # same-form: ephemeris -> ephemeris
+    assert routed.metadata.reference_frame == "EME2000"  # preserved verbatim, not rotated
+
+
 # --- the lazy convert-package surface ----------------------------------------------
 
 

@@ -85,6 +85,35 @@ REPORT_HEADER_REPEAT = (
     b"26 Nov 2026 12:01:00.000   6999.0   450.0   0.0   -0.5   7.49   0.0\n"
 )
 
+# A blank line between two data rows (GMAT pads its output): it is skipped, not parsed.
+REPORT_BLANK_DATA_LINE = (
+    b"Sat.UTCGregorian   Sat.EarthMJ2000Eq.X   Sat.EarthMJ2000Eq.Y   "
+    b"Sat.EarthMJ2000Eq.Z   Sat.EarthMJ2000Eq.VX   Sat.EarthMJ2000Eq.VY   "
+    b"Sat.EarthMJ2000Eq.VZ\n"
+    b"26 Nov 2026 12:00:00.000   7000.0   0.0   0.0   0.0   7.5   0.0\n"
+    b"\n"
+    b"26 Nov 2026 12:01:00.000   6999.0   450.0   0.0   -0.5   7.49   0.0\n"
+)
+
+# The epoch column belongs to a different resource than the Cartesian state's: epoch
+# selection falls back to the first recognised epoch column.
+REPORT_EPOCH_OTHER_RESOURCE = (
+    b"Clock.UTCGregorian   Sat.EarthMJ2000Eq.X   Sat.EarthMJ2000Eq.Y   "
+    b"Sat.EarthMJ2000Eq.Z   Sat.EarthMJ2000Eq.VX   Sat.EarthMJ2000Eq.VY   "
+    b"Sat.EarthMJ2000Eq.VZ\n"
+    b"26 Nov 2026 12:00:00.000   7000.0   0.0   0.0   0.0   7.5   0.0\n"
+)
+
+# A column with no resource qualifier (``Index``) and an incomplete state group
+# (``Probe`` has only X) precede the first complete state group (``Sat``): both are
+# skipped when choosing the state to adapt.
+REPORT_MIXED_NONSTATE = (
+    b"Sat.UTCGregorian   Index   Probe.EarthMJ2000Eq.X   "
+    b"Sat.EarthMJ2000Eq.X   Sat.EarthMJ2000Eq.Y   Sat.EarthMJ2000Eq.Z   "
+    b"Sat.EarthMJ2000Eq.VX   Sat.EarthMJ2000Eq.VY   Sat.EarthMJ2000Eq.VZ\n"
+    b"26 Nov 2026 12:00:00.000   0   1.0   7000.0   0.0   0.0   0.0   7.5   0.0\n"
+)
+
 
 def test_reader_is_registered_for_gmat_report() -> None:
     assert get_reader("gmat-report") is read_gmat_report
@@ -307,3 +336,52 @@ def test_a_non_numeric_modjulian_epoch_is_rejected() -> None:
     broken = REPORT_A1_SINGLE.replace(b"21545.0", b"notanumber")
     with pytest.raises(MalformedSourceError, match=r"could not parse the GMAT epoch"):
         read(broken, format="gmat-report")
+
+
+def test_a_gregorian_epoch_with_a_malformed_time_of_day_is_rejected() -> None:
+    # Four space-separated tokens, but the time of day is HH:MM, not HH:MM:SS.
+    broken = REPORT_FULL.replace(b"26 Nov 2026 12:00:00.000", b"26 Nov 2026 12:00")
+    with pytest.raises(MalformedSourceError, match=r"expected HH:MM:SS"):
+        read(broken, format="gmat-report")
+
+
+def test_a_gregorian_epoch_with_a_non_numeric_field_is_rejected() -> None:
+    # Well-formed shape and a known month, but the day is not an integer.
+    broken = REPORT_FULL.replace(b"26 Nov 2026 12:00:00.000", b"XX Nov 2026 12:00:00.000")
+    with pytest.raises(MalformedSourceError, match=r"could not parse the GMAT epoch"):
+        read(broken, format="gmat-report")
+
+
+# --- column / epoch-selection edge cases -----------------------------------------------
+
+
+def test_a_blank_line_among_data_rows_is_skipped() -> None:
+    eph = read(REPORT_BLANK_DATA_LINE, format="gmat-report")
+    assert isinstance(eph, Ephemeris)
+    assert len(eph) == 2  # the blank line is skipped, not counted as a row
+    assert eph.epochs[1] == np.datetime64("2026-11-26T12:01:00", "ns")
+
+
+def test_epoch_column_for_a_different_resource_falls_back_to_the_first() -> None:
+    # No epoch column belongs to the state's resource ("Sat"), so the first recognised
+    # epoch column ("Clock.UTCGregorian") is used.
+    sv = read(REPORT_EPOCH_OTHER_RESOURCE, format="gmat-report")
+    assert isinstance(sv, StateVector)
+    assert sv.epoch == np.datetime64("2026-11-26T12:00:00", "ns")
+    assert sv.metadata.object_name == "Sat"
+    np.testing.assert_allclose(sv.velocity, (0.0, 7.5, 0.0))
+
+
+def test_non_state_and_incomplete_columns_are_skipped_for_the_first_complete_state() -> None:
+    sv = read(REPORT_MIXED_NONSTATE, format="gmat-report")
+    assert isinstance(sv, StateVector)
+    # "Index" (no resource qualifier) and "Probe" (X only, no triplet) are skipped; the
+    # first complete group, "Sat", is adapted.
+    assert sv.metadata.object_name == "Sat"
+    np.testing.assert_allclose(sv.position, (7000.0, 0.0, 0.0))
+    np.testing.assert_allclose(sv.velocity, (0.0, 7.5, 0.0))
+    # The skipped columns still survive verbatim on the fidelity model.
+    report = sv.source_native
+    assert isinstance(report, GmatReportFile)
+    assert "Index" in report.columns
+    assert "Probe.EarthMJ2000Eq.X" in report.columns
