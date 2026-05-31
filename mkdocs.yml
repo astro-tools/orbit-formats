@@ -35,6 +35,7 @@ theme:
 nav:
   - Home: index.md
   - Getting started: getting-started.md
+  - Command-line interface: cli.md
   - API reference: api.md
 
 plugins:
