@@ -12,11 +12,12 @@ fidelity model rather than dropped.
 | TLE / 3LE | `tle` | ✓ | ✓ | mean-element set |
 | CCSDS OEM (KVN + XML) | `ccsds-oem` | ✓ | ✓ | ephemeris |
 | CCSDS OMM (KVN + XML) | `ccsds-omm` | ✓ | ✓ | mean-element set |
+| CCSDS OPM (KVN + XML) | `ccsds-opm` | ✓ | ✓ | state vector |
 | GMAT report | `gmat-report` | ✓ | — | ephemeris / state |
 
 TLE and OMM share the **mean-element set** canonical form, so they convert into each other:
 read a TLE and write an OMM, or read an OMM and write a TLE. Other formats — SP3, STK
-ephemeris, the rest of the CCSDS NDM family (OPM / AEM / CDM), SPICE SPK, RINEX navigation —
+ephemeris, the rest of the CCSDS NDM family (AEM / CDM), SPICE SPK, RINEX navigation —
 are recognised by detection but not yet read or written; a `read` of one raises
 `UnsupportedFormatError`. They land in later versions.
 
@@ -92,6 +93,31 @@ lines).
   (`.omm` → KVN, `.xml` → XML).
 - **Detection:** the `CCSDS_OMM_VERS =` KVN header, or an `<omm>` XML root carrying the same
   marker, or the `.omm` extension.
+
+## CCSDS OPM (KVN + XML) — `ccsds-opm`
+
+An Orbit Parameter Message reads into a `StateVector`. Both notations — KVN and XML — are
+read and written under one `ccsds-opm` id and one fidelity model. An OPM carries a single
+Cartesian state at one epoch, optionally accompanied by an osculating Keplerian restatement,
+spacecraft parameters, a covariance, and any number of planned maneuvers.
+
+- **Expresses:** the Cartesian position and velocity at the state epoch, tagged with the
+  frame, central body, time system, object name, and object id from the metadata.
+- **Osculating Keplerian block:** when the OPM states one with a `TRUE_ANOMALY` it populates
+  the canonical `keplerian` — a redundant restatement of the same Cartesian state. A block
+  stated with `MEAN_ANOMALY` instead leaves the canonical view unset (the canonical form holds
+  a true-anomaly representation), but the full block survives on `source_native`.
+- **Preserved on `source_native`, not in the canonical form:** the covariance, the maneuver
+  blocks (ignition epoch, duration, delta-mass, frame, and the three delta-v components), the
+  spacecraft-parameters block, the full Keplerian block, user-defined parameters, comments, and
+  the header. An OPM whose `TIME_SYSTEM` is one the canonical spine does not carry leaves
+  `metadata.time_scale` unset with the raw value on the fidelity model.
+- **Writing** mirrors the OEM and OMM writers: byte-identical (with `retain_source=True`),
+  content-lossless, or synthesised from the canonical state with a warning for each
+  OPM-required metadata field the source cannot supply. The destination extension selects the
+  notation (`.opm` → KVN, `.xml` → XML).
+- **Detection:** the `CCSDS_OPM_VERS =` KVN header, or an `<opm>` XML root carrying the same
+  marker, or the `.opm` extension.
 
 ## GMAT report — `gmat-report`
 

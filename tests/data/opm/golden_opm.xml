@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opm id="CCSDS_OPM_VERS" version="3.0">
+  <header>
+    <COMMENT>GEOCENTRIC, CARTESIAN, EARTH FIXED</COMMENT>
+    <CREATION_DATE>2020-065T16:00:00</CREATION_DATE>
+    <ORIGINATOR>18 SPCS</ORIGINATOR>
+  </header>
+  <body>
+    <segment>
+      <metadata>
+        <OBJECT_NAME>GODZILLA 5</OBJECT_NAME>
+        <OBJECT_ID>1998-057A</OBJECT_ID>
+        <CENTER_NAME>EARTH</CENTER_NAME>
+        <REF_FRAME>EME2000</REF_FRAME>
+        <TIME_SYSTEM>UTC</TIME_SYSTEM>
+      </metadata>
+      <data>
+        <stateVector>
+          <COMMENT>state vector in the EME2000 frame</COMMENT>
+          <EPOCH>2020-03-04T14:28:15.1172</EPOCH>
+          <X units="km">6503.514</X>
+          <Y units="km">1239.647</Y>
+          <Z units="km">-717.49</Z>
+          <X_DOT units="km/s">-0.87316</X_DOT>
+          <Y_DOT units="km/s">8.74042</Y_DOT>
+          <Z_DOT units="km/s">-4.191076</Z_DOT>
+        </stateVector>
+        <keplerianElements>
+          <COMMENT>osculating Keplerian elements</COMMENT>
+          <SEMI_MAJOR_AXIS>6730.96</SEMI_MAJOR_AXIS>
+          <ECCENTRICITY>0.0006703</ECCENTRICITY>
+          <INCLINATION>51.6416</INCLINATION>
+          <RA_OF_ASC_NODE>247.4627</RA_OF_ASC_NODE>
+          <ARG_OF_PERICENTER>130.536</ARG_OF_PERICENTER>
+          <TRUE_ANOMALY>325.0288</TRUE_ANOMALY>
+          <GM>398600.9368</GM>
+        </keplerianElements>
+        <spacecraftParameters>
+          <COMMENT>spacecraft parameters</COMMENT>
+          <MASS>3000.0</MASS>
+          <SOLAR_RAD_AREA>18.77</SOLAR_RAD_AREA>
+          <SOLAR_RAD_COEFF>1.0</SOLAR_RAD_COEFF>
+          <DRAG_AREA>18.77</DRAG_AREA>
+          <DRAG_COEFF>2.5</DRAG_COEFF>
+        </spacecraftParameters>
+        <covarianceMatrix>
+          <COMMENT>covariance in the RTN frame</COMMENT>
+          <COV_REF_FRAME>RTN</COV_REF_FRAME>
+          <CX_X>0.31</CX_X>
+          <CY_X>0.32</CY_X>
+          <CY_Y>0.33</CY_Y>
+          <CZ_X>0.34</CZ_X>
+          <CZ_Y>0.35</CZ_Y>
+          <CZ_Z>0.36</CZ_Z>
+          <CX_DOT_X>0.37</CX_DOT_X>
+          <CX_DOT_Y>0.38</CX_DOT_Y>
+          <CX_DOT_Z>0.39</CX_DOT_Z>
+          <CX_DOT_X_DOT>0.4</CX_DOT_X_DOT>
+          <CY_DOT_X>0.41</CY_DOT_X>
+          <CY_DOT_Y>0.42</CY_DOT_Y>
+          <CY_DOT_Z>0.43</CY_DOT_Z>
+          <CY_DOT_X_DOT>0.44</CY_DOT_X_DOT>
+          <CY_DOT_Y_DOT>0.45</CY_DOT_Y_DOT>
+          <CZ_DOT_X>0.46</CZ_DOT_X>
+          <CZ_DOT_Y>0.47</CZ_DOT_Y>
+          <CZ_DOT_Z>0.48</CZ_DOT_Z>
+          <CZ_DOT_X_DOT>0.49</CZ_DOT_X_DOT>
+          <CZ_DOT_Y_DOT>0.5</CZ_DOT_Y_DOT>
+          <CZ_DOT_Z_DOT>0.51</CZ_DOT_Z_DOT>
+        </covarianceMatrix>
+        <maneuverParameters>
+          <COMMENT>first maneuver: orbit-raising</COMMENT>
+          <MAN_EPOCH_IGNITION>2020-03-05T10:31:36.871</MAN_EPOCH_IGNITION>
+          <MAN_DURATION>286.0</MAN_DURATION>
+          <MAN_DELTA_MASS>-3.0</MAN_DELTA_MASS>
+          <MAN_REF_FRAME>EME2000</MAN_REF_FRAME>
+          <MAN_DV_1>0.0</MAN_DV_1>
+          <MAN_DV_2>0.0</MAN_DV_2>
+          <MAN_DV_3>-0.001</MAN_DV_3>
+        </maneuverParameters>
+        <maneuverParameters>
+          <COMMENT>second maneuver: station-keeping</COMMENT>
+          <MAN_EPOCH_IGNITION>2020-03-06T01:00:00</MAN_EPOCH_IGNITION>
+          <MAN_DURATION>0.0</MAN_DURATION>
+          <MAN_DELTA_MASS>-0.5</MAN_DELTA_MASS>
+          <MAN_REF_FRAME>RTN</MAN_REF_FRAME>
+          <MAN_DV_1>0.001</MAN_DV_1>
+          <MAN_DV_2>0.0</MAN_DV_2>
+          <MAN_DV_3>0.0</MAN_DV_3>
+        </maneuverParameters>
+        <userDefinedParameters>
+          <USER_DEFINED parameter="INTLDES">1998-057A</USER_DEFINED>
+        </userDefinedParameters>
+      </data>
+    </segment>
+  </body>
+</opm>
