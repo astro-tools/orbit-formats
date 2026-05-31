@@ -20,14 +20,6 @@ The *unqualified* variant places every message in the single `urn:ccsds:schema:n
 namespace; it is the simpler set to bind and matches the `urn:ccsds:` content signature the
 KVN detector already keys on.
 
-## Why these are license-clean
-
-CCSDS publishes its standards and the accompanying schema artefacts for public
-implementation use. They are documents authored by the standards body, not third-party
-source code, and carry no copyleft licence — so vendoring them keeps the whole orbit-formats
-tree free of any GPL obligation. (The GPL-licensed `ccsds-ndm` library is used only as a
-dev-time cross-validation oracle and is never vendored, imported, or distributed.)
-
 ## Files
 
 | File | NDM member |
