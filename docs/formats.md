@@ -1,6 +1,6 @@
 # Formats
 
-What each v0.1 format expresses, what it cannot, and how it maps into the canonical
+What each format expresses, what it cannot, and how it maps into the canonical
 representation. Reading routes a format into its canonical category type; everything the
 canonical form has no slot for is preserved on the [`source_native`](canonical-representation.md)
 fidelity model rather than dropped.
@@ -22,6 +22,14 @@ read a TLE and write an OMM, or read an OMM and write a TLE. Other formats — t
 CCSDS NDM family (AEM / CDM), SPICE SPK, RINEX navigation — are recognised by detection but
 not yet read or written; a `read` of one raises `UnsupportedFormatError`. They land in later
 versions.
+
+**CCSDS notation — KVN and XML.** The OEM, OMM, and OPM each read and write in both CCSDS
+notations under a single format id. The two notations are held at **parity**: KVN and XML parse
+into the same fidelity model, so a message carries identical content whichever it arrived in,
+and a KVN → XML → KVN round trip reproduces it. On write, the destination extension selects the
+notation (`.oem` / `.omm` / `.opm` → KVN, `.xml` → XML); since `.xml` names no single NDM
+message, writing one needs an explicit `format=` (e.g. `write(eph, "sat.xml",
+format="ccsds-oem")`).
 
 ## TLE / 3LE — `tle`
 
@@ -54,10 +62,11 @@ fidelity model, so an OEM is the same canonical object whichever notation it arr
 - **Expresses:** a Cartesian state-vector time series, with the frame, central body, time
   system, object name, and object id from the segment META.
 - **Multi-segment files** are concatenated into one canonical ephemeris. The segments must
-  agree on reference frame, central body, and time system — concatenating states tagged
-  differently would need a transform v0.1 does not perform, so a disagreement raises
-  `MalformedSourceError` rather than producing a wrong series. Per-segment META is preserved
-  on `source_native`.
+  agree on reference frame, central body, and time system — the reader does not silently rotate
+  or rescale one segment to match another, so a disagreement raises `MalformedSourceError`
+  rather than producing a wrong series. (Rotating a whole ephemeris into another frame is a
+  separate, explicit step — `convert(..., frame=...)`.) Per-segment META is preserved on
+  `source_native`.
 - **Preserved on `source_native`, not in the canonical form:** acceleration columns,
   covariance blocks, comments, non-standard META keywords, and the full per-segment header.
   An OEM whose `TIME_SYSTEM` is one the canonical spine does not carry (e.g. `TCB`) leaves

@@ -8,10 +8,12 @@
 
 Lossless round-trip across orbital state-vector and ephemeris formats.
 
-> **Status:** orbit-formats reads TLE, CCSDS OEM (KVN), and GMAT report files, writes
-> CCSDS OEM, and round-trips OEM losslessly. More formats (the rest of the CCSDS NDM
-> family, SP3, STK, SPK, RINEX) and a real frame-rotation layer land in later versions.
-> See the [changelog](CHANGELOG.md) for released functionality.
+> **Status:** orbit-formats reads TLE, CCSDS OEM / OMM / OPM (KVN and XML), STK ephemeris,
+> SP3, and GMAT report files; writes TLE, CCSDS OEM / OMM / OPM, and STK ephemeris; rotates
+> Cartesian states across TEME / EME2000 / GCRF / ICRF / ITRF; and round-trips its writable
+> formats losslessly. More formats (the CCSDS attitude, conjunction, tracking, and OCM
+> messages, SPICE SPK, and RINEX) land in later versions. See the
+> [changelog](CHANGELOG.md) for released functionality.
 
 ## What this is
 
@@ -53,8 +55,12 @@ and the
 
 | Format | Read | Write | Canonical form |
 |--------|:----:|:-----:|----------------|
-| TLE / 3LE | ✅ | — | mean-element set |
-| CCSDS OEM (KVN) | ✅ | ✅ | ephemeris |
+| TLE / 3LE | ✅ | ✅ | mean-element set |
+| CCSDS OEM (KVN + XML) | ✅ | ✅ | ephemeris |
+| CCSDS OMM (KVN + XML) | ✅ | ✅ | mean-element set |
+| CCSDS OPM (KVN + XML) | ✅ | ✅ | state vector |
+| STK ephemeris | ✅ | ✅ | ephemeris |
+| SP3 (SP3-c / SP3-d) | ✅ | — | ephemeris |
 | GMAT report | ✅ | — | ephemeris / state |
 
 The [canonical representation](https://astro-tools.github.io/orbit-formats/canonical-representation/)

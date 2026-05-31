@@ -29,12 +29,12 @@ depend on as the single source of format truth.
 
 ## What it reads and writes
 
-orbit-formats reads TLE / 3LE, CCSDS OEM and OMM (each in KVN and XML), and GMAT report
-files; writes TLE, CCSDS OEM, and CCSDS OMM (the NDM messages in either notation); converts
-between the canonical forms where that is meaningful — including the lossless TLE ↔ OMM
-pairing; and round-trips OEM and OMM losslessly. See [Formats](formats.md) for what each can
-and cannot express, and the [conversion-capability matrix](conversion-matrix.md) for what
-converts to what.
+orbit-formats reads TLE / 3LE, CCSDS OEM / OMM / OPM (each in KVN and XML), STK ephemeris,
+SP3, and GMAT report files; writes TLE, CCSDS OEM / OMM / OPM (the NDM messages in either
+notation), and STK ephemeris; converts between formats that share a canonical form — including
+the lossless TLE ↔ OMM pairing — and rotates Cartesian states across TEME / EME2000 / GCRF /
+ICRF / ITRF on request. See [Formats](formats.md) for what each can and cannot express, and the
+[conversion-capability matrix](conversion-matrix.md) for what converts to what.
 
 ## Installation
 

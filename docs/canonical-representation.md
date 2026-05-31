@@ -17,7 +17,7 @@ dataclass family consumers actually speak. It is *federated*, not universal: a s
 metadata spine plus a category type per kind of object, rather than one god-model spanning
 genuinely different domain objects.
 
-The v0.1 category types are:
+The category types are:
 
 | Type | Holds | DataFrame? |
 |------|-------|------------|
@@ -26,7 +26,7 @@ The v0.1 category types are:
 | `MeanElementSet` | a mean-element set (TLE / OMM-style), mean elements at an epoch | yes — one row |
 
 (`Attitude`, `Conjunction`, and `Tracking` are reserved for later versions and carry no
-v0.1 payload.)
+payload yet.)
 
 An **adapter** maps each fidelity model to and from the canonical metamodel. Reading routes
 `format → fidelity model → canonical`; writing routes `canonical → fidelity model →
@@ -67,7 +67,7 @@ lossless-round-trip library cannot depend on). The spine fields:
 | `object_name` | the object's name |
 | `object_id` | catalogue / international designator (e.g. a NORAD id, `1998-067A`) |
 | `originator` | the producing agency |
-| `reference_frame` | the frame the state is expressed in (tagged, not rotated in v0.1) |
+| `reference_frame` | the frame the state is expressed in (tagged; rotated on request across TEME / EME2000 / GCRF / ICRF / ITRF) |
 | `central_body` | the gravitational centre |
 | `time_scale` | one of `UTC` / `TAI` / `TT` / `TDB` / `GPS` / `UT1` |
 | `units` | a `UnitSpec` (defaults: km, km/s, deg, s) |

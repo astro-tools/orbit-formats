@@ -7,7 +7,7 @@ to the one the equivalent `convert` / `write` calls produce.
 ## `orbit-formats convert`
 
 ```bash
-orbit-formats convert <input> <output> --to <format> [--from <format>]
+orbit-formats convert <input> <output> --to <format> [--from <format>] [--frame <frame>]
 ```
 
 Read `<input>`, convert it to the `--to` format, and write it to `<output>`.
@@ -16,6 +16,10 @@ Read `<input>`, convert it to the `--to` format, and write it to `<output>`.
   extension. Pass `--from <format>` to override the detection — needed for a format with no
   content signature (such as a GMAT report) when the file does not carry the expected
   extension.
+- **Frame rotation.** Pass `--frame <frame>` (one of `TEME`, `EME2000` / `J2000`, `GCRF`,
+  `ICRF`, `ITRF`) to rotate the Cartesian state into that reference frame; omitted, the source
+  frame is kept. The rotation is lossless. A frame outside the set, or a mean-element input
+  (a TLE or OMM) with no Cartesian state to rotate, fails with a non-zero exit.
 - **Lossy warnings.** A conversion that cannot carry every field across — for example,
   writing an ephemeris that has no object id to OEM — prints a warning to **stderr** naming
   what was lost, and still writes the output.
@@ -37,4 +41,10 @@ with placeholders and names them on stderr:
 ```text
 orbit-formats: warning: the ephemeris does not supply the OEM-required OBJECT_ID; wrote the placeholder 'UNKNOWN'
 orbit-formats: warning: the ephemeris does not supply the OEM-required CENTER_NAME; wrote the placeholder 'UNKNOWN'
+```
+
+Re-serialise an OEM into the J2000 frame:
+
+```bash
+orbit-formats convert orbit.oem j2000.oem --to ccsds-oem --frame J2000
 ```

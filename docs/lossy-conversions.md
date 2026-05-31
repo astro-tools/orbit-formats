@@ -14,8 +14,8 @@ The contract at the heart of orbit-formats: a conversion either preserves inform
   cannot hold something the source carried, the conversion still proceeds — but emits a
   structured, catchable warning naming exactly what was lost.
 - **A conversion that cannot be done without modelling is refused, not faked.** Turning a
-  mean-element set into a state series is a propagation; v0.1 raises rather than guessing
-  (see below).
+  mean-element set into a state series is a propagation; orbit-formats raises rather than
+  guessing (see below).
 
 ## The warning types
 
@@ -56,17 +56,24 @@ succeeds; see the [command-line interface](cli.md).
 
 ## Frame and time-transform scope
 
-Cross-format conversion sometimes needs a real transform. v0.1 draws the line deliberately:
+Cross-format conversion sometimes needs a real transform. orbit-formats draws the line
+deliberately:
 
 - **Time scales — supported.** Converting an instant between `UTC`, `TAI`, `TT`, `TDB`,
   `GPS`, and `UT1` is a lossless reinterpretation of the same instant; it runs internally
   through astropy (with leap seconds and bundled Earth-orientation data, no network access).
-- **Frame rotation — deferred.** v0.1 *tags and preserves* reference frames but does not
-  rotate between distinct ones. A conversion that would require a frame rotation raises
-  `FrameRotationUnsupportedError` rather than performing a naïve, un-rotated transform.
-  Real frame rotation lands in a later version.
+- **Frame rotation — supported.** Rotating a Cartesian state between `TEME`, `EME2000` /
+  `J2000`, `GCRF`, `ICRF`, and `ITRF` is a rigid, lossless change of axes. Pass `frame=` to
+  `convert` (or `--frame` to the CLI) to request it; omitted, the source frame is kept. The
+  rotation runs through astropy (precession / nutation for the inertial frames, the IERS
+  Earth-orientation tables and the Earth-rotation rate for the terrestrial ITRF), read
+  hermetically with no network access — `GCRF` and `ICRF` are identical, so that pair is a
+  no-op. It drops the byte-lossless `source_native` handle, since the rotated state no longer
+  matches the original bytes; the canonical content stays exact. A frame outside the set, or a
+  mean-element set with no Cartesian state to rotate, raises `FrameRotationUnsupportedError`
+  rather than performing a naïve, un-modelled transform.
 
-This is why a mean-element set does not convert to an ephemeris in v0.1: that step needs a
+Frame rotation does **not** turn a mean-element set into an ephemeris: that step needs a
 propagator, which is out of scope. The conversion is refused with
 `UnsupportedConversionError` rather than approximated — the
 [conversion-capability matrix](conversion-matrix.md) lists which paths are available.
