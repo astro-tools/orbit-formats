@@ -29,6 +29,7 @@ from orbit_formats.registry import get_writer
 from orbit_formats.writers.oem import write_oem
 from orbit_formats.writers.omm import write_omm
 from orbit_formats.writers.opm import write_opm
+from orbit_formats.writers.stk_ephemeris import write_stk_ephemeris
 from orbit_formats.writers.tle import write_tle
 
 CONCRETE_WARNINGS = [DroppedFieldWarning, ModelApproximationWarning, PrecisionLossWarning]
@@ -134,6 +135,7 @@ def test_each_warning_is_catchable_by_its_own_type(cls: type[LossyConversionWarn
 
 GOLDEN_OEM = Path(__file__).parent / "data" / "oem" / "golden_roundtrip.oem"
 GOLDEN_OPM = Path(__file__).parent / "data" / "opm" / "golden_opm.opm"
+GOLDEN_STK = Path(__file__).parent / "data" / "stk" / "golden_roundtrip.e"
 
 # A single-row GMAT report with a complete state (no NaN-fill) and a position-only one
 # (velocity absent -> MissingFieldWarning) — minimal and self-contained.
@@ -203,6 +205,23 @@ def _opm_state() -> StateVector:
     return state
 
 
+def _stk_ephemeris() -> Ephemeris:
+    """An ephemeris read from the STK golden (carries an StkEphemerisFile source_native)."""
+    eph = read(GOLDEN_STK.read_bytes())
+    assert isinstance(eph, Ephemeris)
+    return eph
+
+
+def _incomplete_stk_ephemeris() -> Ephemeris:
+    """An ephemeris missing CentralBody and CoordinateSystem — an STK write must warn for each."""
+    return Ephemeris(
+        metadata=Metadata(time_scale="UTC"),
+        epochs=np.array(["2024-01-01T00:00:00"], dtype="datetime64[ns]"),
+        positions=np.array([[7000.0, 0.0, 0.0]]),
+        velocities=np.array([[0.0, 7.5, 0.0]]),
+    )
+
+
 def _incomplete_state_vector() -> StateVector:
     """A state missing OBJECT_ID, CENTER_NAME, and TIME_SYSTEM — an OPM write must warn."""
     return StateVector(
@@ -263,6 +282,18 @@ _META_CASES = [
         lambda: write_opm(_incomplete_state_vector()),
         loses=True,
         writer_format="ccsds-opm",
+    ),
+    _MetaCase(
+        "stk-ephemeris write: content-lossless re-serialise",
+        lambda: write_stk_ephemeris(_stk_ephemeris()),
+        loses=False,
+        writer_format="stk-ephemeris",
+    ),
+    _MetaCase(
+        "stk-ephemeris write: synthesised, missing required meta",
+        lambda: write_stk_ephemeris(_incomplete_stk_ephemeris()),
+        loses=True,
+        writer_format="stk-ephemeris",
     ),
     _MetaCase(
         "tle write: TLE -> TLE echo",

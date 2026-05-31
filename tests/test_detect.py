@@ -58,7 +58,7 @@ SPK = b"DAF/SPK " + b"\x00" * 120
         (CDM_KVN, "ccsds-cdm"),
         (OEM_XML, "ccsds-oem"),
         (SP3, "sp3"),
-        (STK, "stk"),
+        (STK, "stk-ephemeris"),
         (RINEX, "rinex-nav"),
         (SPK, "spk"),
     ],
