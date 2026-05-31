@@ -7,4 +7,11 @@ Importing this package imports each reader module so that registering a reader a
 public surface is a one-time import side effect (see :mod:`orbit_formats.registry`).
 """
 
-from orbit_formats.readers import ccsds, ccsds_omm, ccsds_opm, gmat_report, tle  # noqa: F401
+from orbit_formats.readers import (  # noqa: F401
+    ccsds,
+    ccsds_omm,
+    ccsds_opm,
+    gmat_report,
+    stk_ephemeris,
+    tle,
+)
