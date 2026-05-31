@@ -64,6 +64,47 @@ class TleRecord(FidelityModel):
     line2: str
     name: str | None = None
 
+    @property
+    def norad_catalog_number(self) -> int:
+        """The NORAD catalog number (line 1, columns 3-7)."""
+        return int(self.line1[2:7])
+
+    @property
+    def classification(self) -> str:
+        """The security classification character (line 1, column 8) — ``U`` / ``C`` / ``S``."""
+        return self.line1[7]
+
+    @property
+    def ephemeris_type(self) -> int:
+        """The ephemeris type (line 1, column 63); ``0`` for the standard SGP4/SDP4 set."""
+        field = self.line1[62].strip()
+        return int(field) if field else 0
+
+    @property
+    def element_set_number(self) -> int:
+        """The element-set number (line 1, columns 65-68)."""
+        return int(self.line1[64:68])
+
+    @property
+    def revolution_number_at_epoch(self) -> int:
+        """The revolution number at the epoch (line 2, columns 64-68)."""
+        return int(self.line2[63:68])
+
+    @property
+    def international_designator(self) -> str | None:
+        """The launch designator in the OMM ``OBJECT_ID`` form (e.g. ``1998-067A``).
+
+        Reformats the TLE's two-digit-year field (line 1, columns 10-17) — ``98067A`` becomes
+        ``1998-067A`` — resolving the year by the standard pivot (57-99 → 19xx, 00-56 → 20xx).
+        Returns ``None`` when the designator field is blank, as it is for some catalog entries.
+        """
+        field = self.line1[9:17].strip()
+        if not field:
+            return None
+        year_two_digit = int(field[:2])
+        century = 1900 if year_two_digit >= 57 else 2000
+        return f"{century + year_two_digit}-{field[2:].strip()}"
+
     def epoch_state(self) -> StateVector:
         """The single SGP4 Cartesian state at the TLE epoch (TEME, km / km·s⁻¹).
 

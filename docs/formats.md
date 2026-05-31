@@ -9,13 +9,16 @@ fidelity model rather than dropped.
 
 | Format | Id | Read | Write | Canonical form |
 |--------|----|:----:|:-----:|----------------|
-| TLE / 3LE | `tle` | ✓ | — | mean-element set |
+| TLE / 3LE | `tle` | ✓ | ✓ | mean-element set |
 | CCSDS OEM (KVN + XML) | `ccsds-oem` | ✓ | ✓ | ephemeris |
+| CCSDS OMM (KVN + XML) | `ccsds-omm` | ✓ | ✓ | mean-element set |
 | GMAT report | `gmat-report` | ✓ | — | ephemeris / state |
 
-Other formats — SP3, STK ephemeris, the rest of the CCSDS NDM family (OMM / OPM / AEM /
-CDM), SPICE SPK, RINEX navigation — are recognised by detection but not yet read or written;
-a `read` of one raises `UnsupportedFormatError`. They land in later versions.
+TLE and OMM share the **mean-element set** canonical form, so they convert into each other:
+read a TLE and write an OMM, or read an OMM and write a TLE. Other formats — SP3, STK
+ephemeris, the rest of the CCSDS NDM family (OPM / AEM / CDM), SPICE SPK, RINEX navigation —
+are recognised by detection but not yet read or written; a `read` of one raises
+`UnsupportedFormatError`. They land in later versions.
 
 ## TLE / 3LE — `tle`
 
@@ -31,6 +34,10 @@ The elements are derived from the lines with `sgp4` and stay **mean** elements i
   The single SGP4 state at the epoch is available via the fidelity model
   (`result.source_native.epoch_state()`).
 - **Fidelity:** the raw 69-character lines are kept verbatim on `source_native`.
+- **Writing:** a TLE read back out is echoed verbatim. A `MeanElementSet` from another source
+  (an OMM, say) is reconstructed into two element lines with fresh checksums — *element-level*
+  lossless (a re-read reproduces the same elements to the TLE's representable precision),
+  warning for each TLE identifier the source could not supply.
 - **Detection:** the `1 ` / `2 ` line structure with valid mod-10 checksums and agreeing
   satellite numbers, or the `.tle` / `.3le` extension. A bad checksum or disagreeing
   satellite numbers raise `MalformedSourceError`.
@@ -63,6 +70,28 @@ fidelity model, so an OEM is the same canonical object whichever notation it arr
   `write(eph, "sat.xml", format="ccsds-oem")`.
 - **Detection:** the `CCSDS_OEM_VERS =` KVN header, or an `<oem>` XML root carrying the same
   marker (the `urn:ccsds:` namespace is not required), or the `.oem` extension.
+
+## CCSDS OMM (KVN + XML) — `ccsds-omm`
+
+An Orbit Mean-elements Message reads into a `MeanElementSet`. Both notations — KVN and XML —
+are read and written under one `ccsds-omm` id and one fidelity model. An OMM is the CCSDS
+sibling of a TLE: both carry SGP4 mean elements, so the two convert into each other losslessly
+(`TLE → OMM` enriches the message with the TLE's identifiers; `OMM → TLE` reconstructs the
+lines).
+
+- **Expresses:** the six mean Keplerian elements plus the SGP4 mean motion, the mean-element
+  theory, the frame / central body / time system, and the TLE bookkeeping (catalog number,
+  classification, element-set and revolution numbers, `BSTAR` and the mean-motion derivatives).
+- **Preserved on `source_native`, not in the canonical form:** the spacecraft-parameters and
+  covariance blocks, user-defined parameters, comments, and the full header. A Keplerian OMM
+  that states `SEMI_MAJOR_AXIS` rather than `MEAN_MOTION` has its mean motion derived from the
+  semi-major axis and `GM`.
+- **Writing** mirrors the OEM writer: byte-identical (with `retain_source=True`),
+  content-lossless, or synthesised from the canonical fields with a warning for each
+  OMM-required field the source cannot supply. The destination extension selects the notation
+  (`.omm` → KVN, `.xml` → XML).
+- **Detection:** the `CCSDS_OMM_VERS =` KVN header, or an `<omm>` XML root carrying the same
+  marker, or the `.omm` extension.
 
 ## GMAT report — `gmat-report`
 

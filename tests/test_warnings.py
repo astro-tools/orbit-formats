@@ -15,6 +15,7 @@ from orbit_formats import (
     DroppedFieldWarning,
     Ephemeris,
     LossyConversionWarning,
+    MeanElementSet,
     Metadata,
     ModelApproximationWarning,
     PrecisionLossWarning,
@@ -25,6 +26,8 @@ from orbit_formats import (
 from orbit_formats.formats import is_writable, known_format_ids
 from orbit_formats.registry import get_writer
 from orbit_formats.writers.oem import write_oem
+from orbit_formats.writers.omm import write_omm
+from orbit_formats.writers.tle import write_tle
 
 CONCRETE_WARNINGS = [DroppedFieldWarning, ModelApproximationWarning, PrecisionLossWarning]
 
@@ -174,6 +177,36 @@ def _incomplete_oem_ephemeris() -> Ephemeris:
     )
 
 
+# A complete 3LE — a name plus the two element lines — so the TLE -> OMM enrichment and the
+# TLE -> TLE echo are both warning-free (every identifier is present).
+_TLE_3LE = (
+    b"ISS (ZARYA)\n"
+    b"1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927\n"
+    b"2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537\n"
+)
+
+
+def _tle_mean_set() -> MeanElementSet:
+    """A mean-element set read from a 3LE (carries a TleRecord source_native)."""
+    mean_set = read(_TLE_3LE)
+    assert isinstance(mean_set, MeanElementSet)
+    return mean_set
+
+
+def _bare_mean_set(metadata: Metadata) -> MeanElementSet:
+    """A bare mean-element set (no source_native) with the given metadata — for the lossy cases."""
+    return MeanElementSet(
+        metadata=metadata,
+        epoch=np.datetime64("2024-01-01T00:00:00", "ns"),
+        mean_motion=15.0,
+        eccentricity=0.001,
+        inclination=51.6,
+        raan=247.0,
+        arg_periapsis=130.0,
+        mean_anomaly=325.0,
+    )
+
+
 _META_CASES = [
     _MetaCase(
         "ccsds-oem write: content-lossless re-serialise",
@@ -186,6 +219,30 @@ _META_CASES = [
         lambda: write_oem(_incomplete_oem_ephemeris()),
         loses=True,
         writer_format="ccsds-oem",
+    ),
+    _MetaCase(
+        "ccsds-omm write: TLE -> OMM, every identifier present",
+        lambda: write_omm(_tle_mean_set()),
+        loses=False,
+        writer_format="ccsds-omm",
+    ),
+    _MetaCase(
+        "ccsds-omm write: synthesised, missing required metadata",
+        lambda: write_omm(_bare_mean_set(Metadata())),
+        loses=True,
+        writer_format="ccsds-omm",
+    ),
+    _MetaCase(
+        "tle write: TLE -> TLE echo",
+        lambda: write_tle(_tle_mean_set()),
+        loses=False,
+        writer_format="tle",
+    ),
+    _MetaCase(
+        "tle write: reconstruction missing the TLE bookkeeping",
+        lambda: write_tle(_bare_mean_set(Metadata(object_id="25544"))),
+        loses=True,
+        writer_format="tle",
     ),
     _MetaCase(
         "gmat-report read: complete state",
