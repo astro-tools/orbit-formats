@@ -23,7 +23,7 @@ pytest.importorskip("ccsds_ndm")
 
 from ccsds_ndm.ndm_io import NdmIo
 
-from orbit_formats import Ephemeris, Metadata, read
+from orbit_formats import Ephemeris, Metadata, Provenance, read
 from orbit_formats.writers.oem import write_oem
 
 GOLDEN = Path(__file__).parent / "data" / "oem" / "golden_roundtrip.oem"
@@ -65,18 +65,38 @@ def test_structural_output_is_read_consistently_by_the_oracle() -> None:
     _assert_oracle_matches(write_oem(eph), eph)
 
 
-def test_synthesised_output_is_read_consistently_by_the_oracle() -> None:
-    # Tier 3: an ephemeris with no OEM source_native is built from the canonical fields.
-    eph = Ephemeris(
+def _synthesised_ephemeris() -> Ephemeris:
+    # An ephemeris with no OEM source_native, built from the canonical fields. The originator
+    # and creation date are supplied so the OEM XML header (which requires both) is complete.
+    return Ephemeris(
         metadata=Metadata(
             object_name="SAT",
             object_id="2024-001A",
+            originator="ASTRO-TOOLS",
             central_body="EARTH",
             reference_frame="EME2000",
             time_scale="UTC",
+            provenance=Provenance(source_format="synthetic", creation_date="2024-01-01T00:00:00"),
         ),
         epochs=np.array(["2024-01-01T00:00:00", "2024-01-01T00:01:00"], dtype="datetime64[ns]"),
         positions=np.array([[7000.123456, 1.0, -2.0], [6999.0, 60.5, 0.25]]),
         velocities=np.array([[0.001, 7.546, -0.5], [-0.1, 7.5, 0.0]]),
     )
+
+
+def test_synthesised_output_is_read_consistently_by_the_oracle() -> None:
+    eph = _synthesised_ephemeris()
     _assert_oracle_matches(write_oem(eph), eph)
+
+
+def test_structural_xml_output_is_read_consistently_by_the_oracle() -> None:
+    # The XML notation re-emitted from a read OEM: an independent CCSDS implementation must
+    # read back the same multi-segment states.
+    eph = read(GOLDEN.read_bytes())
+    assert isinstance(eph, Ephemeris)
+    _assert_oracle_matches(write_oem(eph, ".xml"), eph)
+
+
+def test_synthesised_xml_output_is_read_consistently_by_the_oracle() -> None:
+    eph = _synthesised_ephemeris()
+    _assert_oracle_matches(write_oem(eph, ".xml"), eph)

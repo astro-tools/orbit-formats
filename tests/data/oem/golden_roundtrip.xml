@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<oem id="CCSDS_OEM_VERS" version="3.0">
+  <header>
+    <COMMENT>GEOSCIENCE LASER ALTIMETER SYSTEM</COMMENT>
+    <CREATION_DATE>2002-11-04T17:22:31</CREATION_DATE>
+    <ORIGINATOR>NASA/JPL</ORIGINATOR>
+  </header>
+  <body>
+    <segment>
+      <metadata>
+        <OBJECT_NAME>GLAS</OBJECT_NAME>
+        <OBJECT_ID>2003-002A</OBJECT_ID>
+        <CENTER_NAME>EARTH</CENTER_NAME>
+        <REF_FRAME>EME2000</REF_FRAME>
+        <TIME_SYSTEM>UTC</TIME_SYSTEM>
+        <START_TIME>2003-01-13T00:00:00.000</START_TIME>
+        <STOP_TIME>2003-01-13T00:01:00.000</STOP_TIME>
+        <INTERPOLATION>HERMITE</INTERPOLATION>
+        <INTERPOLATION_DEGREE>7</INTERPOLATION_DEGREE>
+      </metadata>
+      <data>
+        <COMMENT>first arc</COMMENT>
+        <stateVector>
+          <EPOCH>2003-01-13T00:00:00</EPOCH>
+          <X units="km">6503.514</X>
+          <Y units="km">1239.647</Y>
+          <Z units="km">-717.972</Z>
+          <X_DOT units="km/s">-0.873</X_DOT>
+          <Y_DOT units="km/s">6.114</Y_DOT>
+          <Z_DOT units="km/s">-3.53</Z_DOT>
+          <X_DDOT units="km/s**2">0.001</X_DDOT>
+          <Y_DDOT units="km/s**2">0.002</Y_DDOT>
+          <Z_DDOT units="km/s**2">0.003</Z_DDOT>
+        </stateVector>
+        <stateVector>
+          <EPOCH>2003-01-13T00:01:00</EPOCH>
+          <X units="km">6450.123</X>
+          <Y units="km">1605.321</Y>
+          <Z units="km">-930.512</Z>
+          <X_DOT units="km/s">-0.901</X_DOT>
+          <Y_DOT units="km/s">6.001</Y_DOT>
+          <Z_DOT units="km/s">-3.601</Z_DOT>
+          <X_DDOT units="km/s**2">0.001</X_DDOT>
+          <Y_DDOT units="km/s**2">0.002</Y_DDOT>
+          <Z_DDOT units="km/s**2">0.003</Z_DDOT>
+        </stateVector>
+      </data>
+    </segment>
+    <segment>
+      <metadata>
+        <OBJECT_NAME>GLAS</OBJECT_NAME>
+        <OBJECT_ID>2003-002A</OBJECT_ID>
+        <CENTER_NAME>EARTH</CENTER_NAME>
+        <REF_FRAME>EME2000</REF_FRAME>
+        <TIME_SYSTEM>UTC</TIME_SYSTEM>
+        <START_TIME>2003-01-13T00:02:00.000</START_TIME>
+        <STOP_TIME>2003-01-13T00:02:00.000</STOP_TIME>
+      </metadata>
+      <data>
+        <stateVector>
+          <EPOCH>2003-01-13T00:02:00</EPOCH>
+          <X units="km">6394.0</X>
+          <Y units="km">1970.0</Y>
+          <Z units="km">-1142.0</Z>
+          <X_DOT units="km/s">-0.93</X_DOT>
+          <Y_DOT units="km/s">5.88</Y_DOT>
+          <Z_DOT units="km/s">-3.67</Z_DOT>
+        </stateVector>
+        <covarianceMatrix>
+          <EPOCH>2003-01-13T00:02:00</EPOCH>
+          <COV_REF_FRAME>RTN</COV_REF_FRAME>
+          <CX_X>0.31</CX_X>
+          <CY_X>0.32</CY_X>
+          <CY_Y>0.33</CY_Y>
+          <CZ_X>0.34</CZ_X>
+          <CZ_Y>0.35</CZ_Y>
+          <CZ_Z>0.36</CZ_Z>
+          <CX_DOT_X>0.37</CX_DOT_X>
+          <CX_DOT_Y>0.38</CX_DOT_Y>
+          <CX_DOT_Z>0.39</CX_DOT_Z>
+          <CX_DOT_X_DOT>0.4</CX_DOT_X_DOT>
+          <CY_DOT_X>0.41</CY_DOT_X>
+          <CY_DOT_Y>0.42</CY_DOT_Y>
+          <CY_DOT_Z>0.43</CY_DOT_Z>
+          <CY_DOT_X_DOT>0.44</CY_DOT_X_DOT>
+          <CY_DOT_Y_DOT>0.45</CY_DOT_Y_DOT>
+          <CZ_DOT_X>0.46</CZ_DOT_X>
+          <CZ_DOT_Y>0.47</CZ_DOT_Y>
+          <CZ_DOT_Z>0.48</CZ_DOT_Z>
+          <CZ_DOT_X_DOT>0.49</CZ_DOT_X_DOT>
+          <CZ_DOT_Y_DOT>0.5</CZ_DOT_Y_DOT>
+          <CZ_DOT_Z_DOT>0.51</CZ_DOT_Z_DOT>
+        </covarianceMatrix>
+      </data>
+    </segment>
+  </body>
+</oem>

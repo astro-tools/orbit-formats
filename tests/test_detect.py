@@ -33,6 +33,14 @@ OEM_XML = (
     b'<oem id="CCSDS_OEM_VERS" version="2.0" '
     b'xmlns="urn:ccsds:recommendation:navigation:schema:ndmxml">\n'
 )
+# The unqualified form orbit-formats' own serialiser emits — no urn:ccsds: namespace, just
+# the <oem> root and the CCSDS_OEM_VERS id marker.
+OEM_XML_UNQUALIFIED = (
+    b'<?xml version="1.0" encoding="UTF-8"?>\n'
+    b'<oem id="CCSDS_OEM_VERS" version="3.0">\n'
+    b"  <header><CREATION_DATE>2024-01-01T00:00:00</CREATION_DATE>"
+    b"<ORIGINATOR>ASTRO-TOOLS</ORIGINATOR></header>\n"
+)
 SP3 = b"#cP2024  8 17  0  0  0.00000000      96 ORBIT IGS20 HLM  IGS\n"
 STK = b"stk.v.11.0\nBEGIN Ephemeris\nNumberOfEphemerisPoints 2\n"
 RINEX = b"     3.04           N: GNSS NAV DATA    M: MIXED            RINEX VERSION / TYPE\n"
@@ -57,6 +65,12 @@ SPK = b"DAF/SPK " + b"\x00" * 120
 )
 def test_detect_by_content_signature(content: bytes, expected: str) -> None:
     assert detect_format(content) == expected
+
+
+def test_unqualified_oem_xml_is_detected_by_content() -> None:
+    # orbit-formats' serialiser emits OEM XML without the urn:ccsds: namespace; the signature
+    # must recognise it from the <oem> root plus the CCSDS_OEM_VERS marker alone.
+    assert detect_format(OEM_XML_UNQUALIFIED) == "ccsds-oem"
 
 
 def test_binary_magic_is_checked_before_text_decode() -> None:
