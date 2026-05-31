@@ -8,8 +8,9 @@
 
 Lossless round-trip across orbital state-vector and ephemeris formats.
 
-> **Status:** orbit-formats is in early development. The package skeleton and tooling
-> are in place; format readers, writers, and the conversion layer land incrementally.
+> **Status:** orbit-formats reads TLE, CCSDS OEM (KVN), and GMAT report files, writes
+> CCSDS OEM, and round-trips OEM losslessly. More formats (the rest of the CCSDS NDM
+> family, SP3, STK, SPK, RINEX) and a real frame-rotation layer land in later versions.
 > See the [changelog](CHANGELOG.md) for released functionality.
 
 ## What this is
@@ -24,6 +25,41 @@ an explicit, structured warning naming what was lost, never a silent drop.
 It consolidates the format-I/O layer that astro-tools projects keep re-implementing into
 one permissively-licensed (MIT) library that anything in the org — or outside it — can
 depend on as the single source of format truth.
+
+## Quick start
+
+```python
+from orbit_formats import read, write
+
+# read auto-detects the format; an OEM becomes a canonical Ephemeris
+eph = read("orbit.oem")
+
+# the canonical DataFrame downstream consumers adopt: Epoch, X, Y, Z, VX, VY, VZ
+df = eph.to_dataframe()
+df.attrs["coordinate_system"], df.attrs["time_scale"]
+
+# round-trip a file byte-for-byte by retaining the source
+write(read("orbit.oem", retain_source=True), "copy.oem")
+```
+
+A conversion that cannot carry every field across warns (naming what was lost) rather than
+dropping data silently; one that cannot be done without modelling — a TLE's mean elements to
+an ephemeris — is refused, not faked. See the
+[lossy-conversion contract](https://astro-tools.github.io/orbit-formats/lossy-conversions/)
+and the
+[conversion-capability matrix](https://astro-tools.github.io/orbit-formats/conversion-matrix/).
+
+## Supported formats
+
+| Format | Read | Write | Canonical form |
+|--------|:----:|:-----:|----------------|
+| TLE / 3LE | ✅ | — | mean-element set |
+| CCSDS OEM (KVN) | ✅ | ✅ | ephemeris |
+| GMAT report | ✅ | — | ephemeris / state |
+
+The [canonical representation](https://astro-tools.github.io/orbit-formats/canonical-representation/)
+— a small typed dataclass family unified by a metadata spine — is the format-agnostic form
+everything reads into and writes from.
 
 ## What this is not
 
