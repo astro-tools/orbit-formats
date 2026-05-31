@@ -3,3 +3,9 @@
 # CRLF) would otherwise rewrite them and break those byte-exact assertions, so treat the
 # fixtures as binary — checked out verbatim, identical on every platform.
 tests/data/** -text
+
+# The vendored CCSDS NDM/XML schemas are kept byte-verbatim from the authoritative SANA
+# source (they carry mixed CRLF/LF as published). Pinning them as binary stops autocrlf
+# from rewriting line endings, so the xsdata regeneration reproduces the committed
+# bindings identically on Linux, macOS, and Windows.
+schemas/** -text
