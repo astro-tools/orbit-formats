@@ -19,6 +19,7 @@ from orbit_formats import (
     Metadata,
     ModelApproximationWarning,
     PrecisionLossWarning,
+    StateVector,
     convert,
     read,
     warn_lossy,
@@ -27,6 +28,7 @@ from orbit_formats.formats import is_writable, known_format_ids
 from orbit_formats.registry import get_writer
 from orbit_formats.writers.oem import write_oem
 from orbit_formats.writers.omm import write_omm
+from orbit_formats.writers.opm import write_opm
 from orbit_formats.writers.tle import write_tle
 
 CONCRETE_WARNINGS = [DroppedFieldWarning, ModelApproximationWarning, PrecisionLossWarning]
@@ -131,6 +133,7 @@ def test_each_warning_is_catchable_by_its_own_type(cls: type[LossyConversionWarn
 # mean-elements -> ephemeris edge.
 
 GOLDEN_OEM = Path(__file__).parent / "data" / "oem" / "golden_roundtrip.oem"
+GOLDEN_OPM = Path(__file__).parent / "data" / "opm" / "golden_opm.opm"
 
 # A single-row GMAT report with a complete state (no NaN-fill) and a position-only one
 # (velocity absent -> MissingFieldWarning) — minimal and self-contained.
@@ -193,6 +196,23 @@ def _tle_mean_set() -> MeanElementSet:
     return mean_set
 
 
+def _opm_state() -> StateVector:
+    """A canonical state read from the OPM golden (carries an OpmFile source_native)."""
+    state = read(GOLDEN_OPM.read_bytes())
+    assert isinstance(state, StateVector)
+    return state
+
+
+def _incomplete_state_vector() -> StateVector:
+    """A state missing OBJECT_ID, CENTER_NAME, and TIME_SYSTEM — an OPM write must warn."""
+    return StateVector(
+        metadata=Metadata(object_name="SAT", reference_frame="EME2000"),
+        epoch=np.datetime64("2024-01-01T00:00:00", "ns"),
+        position=np.array([7000.0, 0.0, 0.0]),
+        velocity=np.array([0.0, 7.5, 0.0]),
+    )
+
+
 def _bare_mean_set(metadata: Metadata) -> MeanElementSet:
     """A bare mean-element set (no source_native) with the given metadata — for the lossy cases."""
     return MeanElementSet(
@@ -231,6 +251,18 @@ _META_CASES = [
         lambda: write_omm(_bare_mean_set(Metadata())),
         loses=True,
         writer_format="ccsds-omm",
+    ),
+    _MetaCase(
+        "ccsds-opm write: content-lossless re-serialise",
+        lambda: write_opm(_opm_state()),
+        loses=False,
+        writer_format="ccsds-opm",
+    ),
+    _MetaCase(
+        "ccsds-opm write: synthesised, missing required metadata",
+        lambda: write_opm(_incomplete_state_vector()),
+        loses=True,
+        writer_format="ccsds-opm",
     ),
     _MetaCase(
         "tle write: TLE -> TLE echo",
