@@ -10,7 +10,7 @@ fidelity model rather than dropped.
 | Format | Id | Read | Write | Canonical form |
 |--------|----|:----:|:-----:|----------------|
 | TLE / 3LE | `tle` | ✓ | — | mean-element set |
-| CCSDS OEM (KVN) | `ccsds-oem` | ✓ | ✓ | ephemeris |
+| CCSDS OEM (KVN + XML) | `ccsds-oem` | ✓ | ✓ | ephemeris |
 | GMAT report | `gmat-report` | ✓ | — | ephemeris / state |
 
 Other formats — SP3, STK ephemeris, the rest of the CCSDS NDM family (OMM / OPM / AEM /
@@ -35,10 +35,11 @@ The elements are derived from the lines with `sgp4` and stay **mean** elements i
   satellite numbers, or the `.tle` / `.3le` extension. A bad checksum or disagreeing
   satellite numbers raise `MalformedSourceError`.
 
-## CCSDS OEM (KVN) — `ccsds-oem`
+## CCSDS OEM (KVN + XML) — `ccsds-oem`
 
-An Orbit Ephemeris Message in key-value notation reads into an `Ephemeris`. v0.1 covers the
-KVN form; the XML form lands later.
+An Orbit Ephemeris Message reads into an `Ephemeris`. Both notations of the message — KVN
+(key-value notation) and XML — are read and written; they share one `ccsds-oem` id and one
+fidelity model, so an OEM is the same canonical object whichever notation it arrived in.
 
 - **Expresses:** a Cartesian state-vector time series, with the frame, central body, time
   system, object name, and object id from the segment META.
@@ -56,7 +57,12 @@ KVN form; the XML form lands later.
   model, or — for a synthesised or cross-format ephemeris with no OEM `source_native` — a
   fresh OEM built from the canonical fields, warning for each OEM-required field the
   canonical form cannot supply. See [Lossy conversions](lossy-conversions.md).
-- **Detection:** the `CCSDS_OEM_VERS =` header, or the `.oem` extension.
+- **KVN vs XML on write:** the destination extension selects the notation — `.oem` writes
+  KVN, `.xml` writes XML — otherwise the source's own notation is re-emitted. Since `.xml`
+  names no single NDM message, writing one needs an explicit format, e.g.
+  `write(eph, "sat.xml", format="ccsds-oem")`.
+- **Detection:** the `CCSDS_OEM_VERS =` KVN header, or an `<oem>` XML root carrying the same
+  marker (the `urn:ccsds:` namespace is not required), or the `.oem` extension.
 
 ## GMAT report — `gmat-report`
 
