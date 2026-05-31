@@ -35,6 +35,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         output_path=args.output,
         target_format=args.to,
         source_format=args.from_format,
+        target_frame=args.frame,
     )
 
 
@@ -70,6 +71,12 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="FORMAT",
         help="override input-format detection (default: auto-detect)",
     )
+    convert_parser.add_argument(
+        "--frame",
+        metavar="FRAME",
+        help="rotate the state into this reference frame, e.g. J2000 or ITRF "
+        "(default: keep the source frame)",
+    )
     return parser
 
 
@@ -79,6 +86,7 @@ def _run_convert(
     output_path: str,
     target_format: str,
     source_format: str | None,
+    target_frame: str | None,
 ) -> int:
     """Run one file-to-file conversion, surfacing lossy warnings and hard failures.
 
@@ -90,7 +98,7 @@ def _run_convert(
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         try:
-            obj = convert(input_path, to=target_format, format=source_format)
+            obj = convert(input_path, to=target_format, format=source_format, frame=target_frame)
             write(obj, output_path, format=target_format)
         except (OrbitFormatsError, OSError) as exc:
             print(f"orbit-formats: error: {exc}", file=sys.stderr)

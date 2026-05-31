@@ -74,6 +74,26 @@ def test_convert_matches_the_api_for_an_oem_round_trip(tmp_path: Path) -> None:
     assert cli_out.read_bytes() == api_out.read_bytes()
 
 
+def test_frame_flag_rotates_and_matches_the_api(tmp_path: Path) -> None:
+    # --frame is threaded straight into convert(): the file the CLI writes is byte-identical
+    # to the equivalent API call, and the rotation changes it relative to a no-frame run.
+    source = tmp_path / "in.oem"
+    source.write_bytes(GOLDEN_OEM.read_bytes())  # EME2000, 2003 (inside bundled IERS-B)
+
+    api_out = tmp_path / "api.oem"
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        write(convert(str(source), to="ccsds-oem", frame="ITRF"), api_out, format="ccsds-oem")
+
+    cli_out = tmp_path / "cli.oem"
+    assert main(["convert", str(source), str(cli_out), "--to", "ccsds-oem", "--frame", "ITRF"]) == 0
+    assert cli_out.read_bytes() == api_out.read_bytes()
+
+    plain = tmp_path / "plain.oem"
+    assert main(["convert", str(source), str(plain), "--to", "ccsds-oem"]) == 0
+    assert cli_out.read_bytes() != plain.read_bytes()
+
+
 # --- input format resolution: auto-detection and the --from override -------------------
 
 

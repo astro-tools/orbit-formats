@@ -13,6 +13,7 @@ import pytest
 from orbit_formats import (
     Canonical,
     Ephemeris,
+    FrameRotationUnsupportedError,
     MeanElementSet,
     Metadata,
     Source,
@@ -191,6 +192,33 @@ def test_convert_rejects_an_unmapped_canonical_type() -> None:
 
     with pytest.raises(UnsupportedConversionError):
         convert(Mystery(metadata=Metadata()), to="ccsds-oem")
+
+
+def test_convert_without_a_frame_keeps_the_source_frame() -> None:
+    ephemeris = _ephemeris()  # tagged TEME
+    assert convert(ephemeris, to="ccsds-oem") is ephemeris
+    assert convert(ephemeris, to="ccsds-oem", frame="TEME") is ephemeris  # already TEME
+
+
+def test_convert_rotates_into_a_requested_frame() -> None:
+    ephemeris = Ephemeris(
+        metadata=Metadata(
+            object_name="SAT", reference_frame="TEME", central_body="Earth", time_scale="UTC"
+        ),
+        epochs=np.array(["2020-06-01T00:00:00"], dtype="datetime64[ns]"),
+        positions=np.array([[7000.0, 1000.0, 0.0]]),
+        velocities=np.array([[0.0, 7.5, 1.0]]),
+    )
+    rotated = convert(ephemeris, to="ccsds-oem", frame="J2000")
+    assert isinstance(rotated, Ephemeris)
+    assert rotated is not ephemeris
+    assert rotated.metadata.reference_frame == "EME2000"
+    assert not np.allclose(rotated.positions, ephemeris.positions)
+
+
+def test_convert_with_an_unsupported_frame_is_rejected() -> None:
+    with pytest.raises(FrameRotationUnsupportedError):
+        convert(_ephemeris(), to="ccsds-oem", frame="NONSENSE")
 
 
 # --- registry --------------------------------------------------------------------------

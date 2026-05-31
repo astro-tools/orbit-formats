@@ -17,7 +17,7 @@ from orbit_formats import (
     UnsupportedConversionError,
     convert,
 )
-from orbit_formats.convert.graph import _TRANSFORMS, require_same_frame, route
+from orbit_formats.convert.graph import _TRANSFORMS, apply_frame, route
 
 
 @dataclass
@@ -27,9 +27,10 @@ class _NativeOem(FidelityModel):
 
 
 def _ephemeris(*, frame: str = "TEME", native: FidelityModel | None = None) -> Ephemeris:
+    # A 2020 epoch keeps any real rotation inside astropy's bundled IERS-B coverage.
     return Ephemeris(
         metadata=Metadata(reference_frame=frame, time_scale="UTC", central_body="EARTH"),
-        epochs=np.array(["2026-01-01T00:00:00"], dtype="datetime64[ns]"),
+        epochs=np.array(["2020-06-01T00:00:00"], dtype="datetime64[ns]"),
         positions=np.array([[7000.0, 0.0, 0.0]]),
         velocities=np.array([[0.0, 7.5, 0.0]]),
         source_native=native,
@@ -77,36 +78,76 @@ def test_cross_form_conversion_is_unsupported_through_the_public_surface() -> No
         convert(_ephemeris(), to="ccsds-opm")
 
 
-# --- the frame-rotation guard ------------------------------------------------------
+# --- the frame axis: apply_frame ---------------------------------------------------
 
 
-def test_require_same_frame_passes_for_identical_frames() -> None:
-    require_same_frame("TEME", "TEME")
-    require_same_frame("teme", "  TEME ")  # case- and whitespace-insensitive
+def test_apply_frame_without_a_target_is_a_no_op() -> None:
+    ephemeris = _ephemeris(frame="EME2000")
+    assert apply_frame(ephemeris, None) is ephemeris  # frame preserved, source_native intact
 
 
-def test_require_same_frame_passes_when_a_frame_is_unknown() -> None:
-    # An unknown frame on either side is not enough to assert a mismatch.
-    require_same_frame(None, "EME2000")
-    require_same_frame("EME2000", None)
+def test_apply_frame_to_the_same_frame_is_a_no_op() -> None:
+    # J2000 names the same frame as EME2000, so no rotation happens and the object is returned.
+    ephemeris = _ephemeris(frame="EME2000")
+    assert apply_frame(ephemeris, "J2000") is ephemeris
 
 
-def test_require_same_frame_rejects_a_cross_frame_rotation() -> None:
-    with pytest.raises(FrameRotationUnsupportedError) as excinfo:
-        require_same_frame("TEME", "EME2000")
-    assert excinfo.value.source_frame == "TEME"
-    assert excinfo.value.target_frame == "EME2000"
-    assert "frame rotation" in str(excinfo.value)
+def test_apply_frame_rotates_a_supported_pair_and_drops_the_native_handle() -> None:
+    native = _NativeOem(raw="CCSDS_OEM_VERS = 2.0")
+    ephemeris = _ephemeris(frame="TEME", native=native)
+    rotated = apply_frame(ephemeris, "J2000")
+    assert isinstance(rotated, Ephemeris)
+    assert rotated is not ephemeris
+    assert rotated.metadata.reference_frame == "EME2000"  # tagged with the canonical target id
+    assert rotated.source_native is None  # the verbatim handle no longer describes the state
+    assert rotated.positions.shape == ephemeris.positions.shape
+    assert not np.allclose(rotated.positions, ephemeris.positions)  # the axes actually moved
+    np.testing.assert_allclose(  # a rigid rotation preserves the magnitude
+        np.linalg.norm(rotated.positions, axis=1),
+        np.linalg.norm(ephemeris.positions, axis=1),
+        rtol=1e-9,
+    )
 
 
-def test_no_v01_conversion_silently_rotates_a_frame() -> None:
-    # The frame-rotation boundary holds end to end on the v0.1 surface: a same-form
-    # conversion returns the object with its frame intact (never rotated toward a target),
-    # and the only cross-form route raises (see the unsupported-conversion test above)
-    # rather than transforming. require_same_frame is the wired-in guard for v0.2's
-    # frame-crossing edges; until then no convert path can rotate silently.
+def test_apply_frame_rejects_an_unknown_target_frame() -> None:
+    with pytest.raises(FrameRotationUnsupportedError):
+        apply_frame(_ephemeris(frame="TEME"), "NONSENSE")
+
+
+def test_apply_frame_rejects_an_unknown_source_frame() -> None:
+    # The state's own frame is unknown, so there is no defined rotation toward the target.
+    with pytest.raises(FrameRotationUnsupportedError):
+        apply_frame(_ephemeris(frame="WANDER"), "J2000")
+
+
+def test_apply_frame_needs_a_time_scale() -> None:
+    ephemeris = Ephemeris(
+        metadata=Metadata(reference_frame="TEME"),  # no time_scale set
+        epochs=np.array(["2020-06-01T00:00:00"], dtype="datetime64[ns]"),
+        positions=np.array([[7000.0, 0.0, 0.0]]),
+        velocities=np.array([[0.0, 7.5, 0.0]]),
+    )
+    with pytest.raises(ValueError, match="time scale"):
+        apply_frame(ephemeris, "J2000")
+
+
+def test_route_resolves_the_target_frame_before_the_form() -> None:
+    # route threads the frame through: a same-form route with no frame returns the object
+    # untouched (byte-lossless path intact), while one into a new frame returns the rotation.
+    ephemeris = _ephemeris(frame="TEME")
+    assert route(ephemeris, "ephemeris", "ephemeris") is ephemeris
+    rotated = route(ephemeris, "ephemeris", "ephemeris", target_frame="J2000")
+    assert isinstance(rotated, Ephemeris)
+    assert rotated is not ephemeris
+    assert rotated.metadata.reference_frame == "EME2000"
+
+
+def test_no_conversion_rotates_a_frame_unless_asked() -> None:
+    # The frame boundary holds end to end: a convert with no frame= keeps the source frame
+    # verbatim (never rotated toward the target), preserving the byte-lossless path.
     eme2000 = _ephemeris(frame="EME2000")
     routed = convert(eme2000, to="ccsds-oem")  # same-form: ephemeris -> ephemeris
+    assert routed is eme2000
     assert routed.metadata.reference_frame == "EME2000"  # preserved verbatim, not rotated
 
 
