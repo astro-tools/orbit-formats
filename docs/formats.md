@@ -15,12 +15,13 @@ fidelity model rather than dropped.
 | CCSDS OPM (KVN + XML) | `ccsds-opm` | ✓ | ✓ | state vector |
 | GMAT report | `gmat-report` | ✓ | — | ephemeris / state |
 | STK ephemeris | `stk-ephemeris` | ✓ | ✓ | ephemeris |
+| SP3 (SP3-c / SP3-d) | `sp3` | ✓ | — | ephemeris |
 
 TLE and OMM share the **mean-element set** canonical form, so they convert into each other:
-read a TLE and write an OMM, or read an OMM and write a TLE. Other formats — SP3, the rest
-of the CCSDS NDM family (AEM / CDM), SPICE SPK, RINEX navigation — are recognised by
-detection but not yet read or written; a `read` of one raises `UnsupportedFormatError`. They
-land in later versions.
+read a TLE and write an OMM, or read an OMM and write a TLE. Other formats — the rest of the
+CCSDS NDM family (AEM / CDM), SPICE SPK, RINEX navigation — are recognised by detection but
+not yet read or written; a `read` of one raises `UnsupportedFormatError`. They land in later
+versions.
 
 ## TLE / 3LE — `tle`
 
@@ -173,3 +174,33 @@ triplet — closed by `END Ephemeris`.
   extension. Only the banner, `BEGIN Ephemeris`, `ScenarioEpoch`, and a recognised data
   section are mandatory; other data-section variants (e.g. `EphemerisTimePos`) raise
   `MalformedSourceError`.
+
+## SP3 — `sp3`
+
+An IGS precise GNSS ephemeris (`.sp3`, SP3-c / SP3-d) reads into an `Ephemeris`. SP3 is a
+multi-satellite product: a header declares the version, a position-only (`P`) or
+position-and-velocity (`V`) mode, the satellite list with a per-satellite accuracy code, and
+the time system; the body is a sequence of epochs, each carrying one position record per
+satellite (and, in `V` mode, a velocity record). SP3 is **read-only** — there is no SP3
+writer, so a write to `.sp3` raises `UnsupportedFormatError`.
+
+- **Expresses:** a Cartesian state-vector time series per satellite, tagged **ITRF** (SP3 is
+  Earth-centred, Earth-fixed) with **Earth** as the central body and the SP3 time system as
+  the time scale. Positions are in km; SP3 velocities (decimetres·s⁻¹) are converted to
+  km·s⁻¹.
+- **Multi-satellite → a per-satellite ephemeris set.** `read` returns the **first** listed
+  satellite as the canonical `Ephemeris`, its id on `metadata.object_name`; the whole set is
+  `result.source_native.ephemerides()` — a `dict` of satellite id → `Ephemeris`, each tagged
+  identically. Every satellite's series rides on `source_native`, so no satellite is dropped.
+- **Time scale:** the SP3 time system is tagged when the canonical spine carries it (`GPS` /
+  `UTC` / `TAI` / `TT` / `UT1`); a GNSS system time it does not model (`GLO` / `GAL` / `QZS`
+  / `BDT` / `IRN`) leaves `time_scale` unset, with the raw value kept on the fidelity model.
+- **Position-only files** (`P`-mode) fill the canonical velocities with NaN — never a
+  fabricated value — and a `MissingFieldWarning` names them.
+- **Preserved on `source_native`, not in the canonical form:** the satellite clock offsets
+  (and rates), the per-satellite accuracy codes, the specific frame realisation (`IGS20`,
+  `IGb14`), the agency / orbit type / GPS week / interval, and the header comments.
+- **Detection:** the `#` + version-letter (`#c` / `#d`) content signature on the first line,
+  or the `.sp3` extension. The reader parses SP3-c and SP3-d; another version, a malformed
+  header, a record with too few columns or a non-numeric value, or a satellite whose record
+  count disagrees with the epoch count raise `MalformedSourceError`.
