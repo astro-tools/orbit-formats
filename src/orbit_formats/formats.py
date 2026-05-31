@@ -190,7 +190,7 @@ FORMATS: tuple[FormatSpec, ...] = (
         "ccsds-cdm", "conjunction", (".cdm",), signature=_ccsds_signature("CCSDS_CDM_VERS", "cdm")
     ),
     FormatSpec("sp3", "ephemeris", (".sp3",), signature=_sig_sp3),
-    FormatSpec("stk", "ephemeris", (".e", ".ephem"), signature=_sig_stk),
+    FormatSpec("stk-ephemeris", "ephemeris", (".e", ".ephem"), signature=_sig_stk),
     FormatSpec("gmat-report", "ephemeris", (".report",), signature=None),
     FormatSpec(
         "rinex-nav", "mean-elements", (".rnx", ".nav"), writable=False, signature=_sig_rinex
