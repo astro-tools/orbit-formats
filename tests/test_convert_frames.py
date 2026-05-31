@@ -13,8 +13,10 @@ from typing import Any
 import numpy as np
 import pytest
 
-from orbit_formats import Ephemeris, Metadata, convert
+from orbit_formats import Ephemeris, MeanElementSet, Metadata, StateVector, convert
 from orbit_formats.convert.frames import normalize_frame, rotate_state, transform_available
+from orbit_formats.convert.graph import apply_frame
+from orbit_formats.errors import FrameRotationUnsupportedError
 
 # Two epochs in 2020 — well inside astropy's bundled IERS-B coverage, so the ITRF rotation
 # (which needs Earth-orientation data) is deterministic without any network access.
@@ -255,3 +257,39 @@ def test_frame_rotation_is_lossless(assert_no_silent_loss: Callable[..., None]) 
     # Rotating to a different frame is a rigid transform — it drops no canonical information,
     # so it must stay warn-free.
     assert_no_silent_loss(lambda: convert(eph, to="ccsds-oem", frame="J2000"), loses=False)
+
+
+# --- the graph's apply_frame policy on the other canonical forms --------------------------
+
+
+def test_apply_frame_rotates_a_state_vector_between_known_frames() -> None:
+    state = StateVector(
+        metadata=Metadata(reference_frame="TEME", time_scale="UTC", central_body="EARTH"),
+        epoch=EPOCHS[0],
+        position=POS[0],
+        velocity=VEL[0],
+    )
+    rotated = apply_frame(state, "ITRF")
+    assert isinstance(rotated, StateVector)
+    assert rotated.metadata.reference_frame == "ITRF"
+    # A rigid rotation preserves the position magnitude.
+    np.testing.assert_allclose(
+        np.linalg.norm(rotated.position), np.linalg.norm(state.position), rtol=1e-9
+    )
+    # The rotated state no longer matches the original bytes, so source_native is dropped.
+    assert rotated.source_native is None
+
+
+def test_apply_frame_on_mean_elements_has_no_cartesian_state_to_rotate() -> None:
+    mean_set = MeanElementSet(
+        metadata=Metadata(reference_frame="TEME", time_scale="UTC", central_body="EARTH"),
+        epoch=EPOCHS[0],
+        mean_motion=15.5,
+        eccentricity=0.001,
+        inclination=51.6,
+        raan=247.0,
+        arg_periapsis=130.0,
+        mean_anomaly=325.0,
+    )
+    with pytest.raises(FrameRotationUnsupportedError):
+        apply_frame(mean_set, "J2000")

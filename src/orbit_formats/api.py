@@ -41,7 +41,7 @@ from orbit_formats.source import SourceInput, load_source
 
 __all__ = ["convert", "read", "write"]
 
-# The canonical form each v0.1 category type projects to, used to decide when a
+# The canonical form each category type projects to, used to decide when a
 # conversion is a no-op (the object is already in the target format's preferred form).
 _FORM_BY_TYPE: dict[type[Canonical], str] = {
     Ephemeris: "ephemeris",

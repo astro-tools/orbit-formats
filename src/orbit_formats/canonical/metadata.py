@@ -14,8 +14,8 @@ from orbit_formats.units import DEFAULT_UNITS, UnitSpec
 
 __all__ = ["TIME_SCALES", "Metadata", "Provenance"]
 
-# The time scales orbit-formats recognises (full set per the kickoff). v0.1 only *tags*
-# the scale here; time-scale conversion between them lands with the conversion graph.
+# The time scales orbit-formats recognises: UTC, TAI, TT, TDB, GPS, and UT1. The
+# conversion graph reads the tag to decide when a time-scale conversion is needed.
 TIME_SCALES = frozenset({"UTC", "TAI", "TT", "TDB", "GPS", "UT1"})
 
 
@@ -39,9 +39,9 @@ class Metadata:
 
     A shared spine across the federated category types: object identity (``object_name``
     / ``object_id`` / ``originator``), reference frame, central body, time scale, the
-    units the numeric fields use, and provenance. ``reference_frame`` is tagged and
-    preserved but not rotated in v0.1 — a conversion that would require a rotation
-    between distinct frames errors rather than guessing.
+    units the numeric fields use, and provenance. ``reference_frame`` is always tagged
+    and preserved; a rotation to an unsupported frame, or one requested from a canonical
+    form with no Cartesian state, errors rather than guessing.
     """
 
     object_name: str | None = None

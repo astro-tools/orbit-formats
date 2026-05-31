@@ -93,19 +93,19 @@ class MalformedSourceError(OrbitFormatsError):
 
 
 class FrameRotationUnsupportedError(OrbitFormatsError):
-    """A conversion would require rotating between two distinct reference frames.
+    """A requested frame rotation could not be performed.
 
-    v0.1 tags and preserves reference frames but does not rotate between them (frame
-    rotation is deferred to a later version). A conversion that would need a rotation
-    raises this rather than performing a naive one. ``source_frame`` and ``target_frame``
-    name the two frames that differ.
+    This is raised either because one side names a reference frame outside the
+    supported set, or because the canonical form carries no Cartesian state to
+    rotate (mean elements, for instance, would first require a propagation).
+    ``source_frame`` and ``target_frame`` name the two frames involved.
     """
 
     def __init__(self, source_frame: str, target_frame: str) -> None:
         self.source_frame = source_frame
         self.target_frame = target_frame
         super().__init__(
-            f"converting from frame {source_frame!r} to {target_frame!r} would require a "
-            "frame rotation, which is not supported; only same-frame conversion is "
-            "available in this version"
+            f"could not rotate from frame {source_frame!r} to {target_frame!r}: the two "
+            "cannot be related, because a frame is outside the supported set or the "
+            "canonical form has no Cartesian state to rotate"
         )
