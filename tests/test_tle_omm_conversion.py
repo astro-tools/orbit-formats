@@ -126,7 +126,12 @@ def test_round_trip_through_xml_omm_also_reconstructs_the_tle() -> None:
     # placeholders and warns rather than dropping them silently.
     with pytest.warns(LossyConversionWarning) as caught:
         xml_omm = write_omm(read(TLE_ISS), ".xml")
-    dropped = {field for record in caught for field in record.message.fields}
+    dropped = {
+        field
+        for record in caught
+        if isinstance(record.message, LossyConversionWarning)
+        for field in record.message.fields
+    }
     assert dropped == {"CREATION_DATE", "ORIGINATOR"}
     via_xml_omm = read(xml_omm)
     assert write_tle(via_xml_omm) == TLE_ISS
