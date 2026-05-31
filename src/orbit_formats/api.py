@@ -101,7 +101,9 @@ def write(
     Path(destination).write_bytes(writer(obj, suffix))
 
 
-def convert(source: SourceInput | Canonical, to: str, *, format: str | None = None) -> Canonical:
+def convert(
+    source: SourceInput | Canonical, to: str, *, format: str | None = None, frame: str | None = None
+) -> Canonical:
     """Convert ``source`` to the canonical form the target format ``to`` expects.
 
     ``source`` is a canonical object or a path/buffer (read first, with ``format=`` as the
@@ -109,16 +111,25 @@ def convert(source: SourceInput | Canonical, to: str, *, format: str | None = No
     When ``source`` is already in the target's preferred form the same object is returned;
     a cross-form conversion with no available path raises
     :class:`~orbit_formats.errors.UnsupportedConversionError`.
+
+    Pass ``frame=`` (e.g. ``"J2000"``, ``"ITRF"``) to rotate the state into that reference
+    frame; omitted, the source frame is kept. Supported frames are TEME, EME2000 / J2000,
+    GCRF, ICRF, and ITRF; a rotation between two frames this version cannot relate — or a
+    form with no Cartesian state to rotate — raises
+    :class:`~orbit_formats.errors.FrameRotationUnsupportedError`. The rotation is lossless;
+    it drops the byte-lossless ``source_native`` handle, since the rotated state no longer
+    matches the original bytes.
     """
     target = normalize_format(to)
     obj = source if isinstance(source, Canonical) else read(source, format=format)
     source_form = _form_of(obj)
     target_form = canonical_form(target)
-    # The conversion graph owns the routing decision: a same-form conversion returns the
-    # object unchanged (a later same-format write stays byte-lossless via source_native);
+    # The conversion graph owns the routing decision: it resolves the target frame (a no-op
+    # unless a rotation is needed), then a same-form conversion returns the object unchanged
+    # (a later same-format write stays byte-lossless via source_native when nothing rotated);
     # a cross-form request with no available edge comes back as None and is reported as
     # unsupported here, where the target format id for the error is in hand.
-    routed = route(obj, source_form, target_form)
+    routed = route(obj, source_form, target_form, target_frame=frame)
     if routed is None:
         raise UnsupportedConversionError(source_form, target, target_form)
     return routed
