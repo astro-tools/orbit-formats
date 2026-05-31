@@ -1,4 +1,4 @@
-"""CCSDS OEM writer — a KVN OEM serialiser, generalised from gmat-run's OEM writer.
+"""CCSDS OEM writer — KVN and XML serialisers, generalised from gmat-run's OEM writer.
 
 The writer has three tiers, picked automatically from what the canonical object carries:
 
@@ -12,11 +12,18 @@ The writer has three tiers, picked automatically from what the canonical object 
    is built from the canonical fields, warning (via the lossy-warning framework) for each
    OEM-required field the canonical form cannot supply.
 
-Tiers 1 and 2 both re-emit *the source*; tier 3 is the only path where the canonical data
-is the source of truth. One serialiser (:func:`_serialize_oem`) backs tiers 2 and 3.
+OEM has two notations — KVN and XML — and the writer emits either. The notation is chosen
+from the destination extension when :func:`~orbit_formats.write` supplies one (``.xml`` →
+XML, ``.oem`` → KVN); failing that, from the source's own notation (so an XML source
+round-trips back to XML); failing that, KVN. A byte-identical echo (tier 1) only applies
+when the retained bytes are already in the notation being written — a cross-notation write
+re-serialises. The XML half lives in :mod:`orbit_formats.adapters.oem_xml`, imported lazily
+so a KVN-only write never touches the xsdata bindings.
 """
 
 from __future__ import annotations
+
+from typing import Literal
 
 import numpy as np
 
@@ -28,6 +35,11 @@ from orbit_formats.registry import register_writer
 from orbit_formats.warnings import DroppedField, LossyConversionWarning, warn_lossy
 
 __all__ = ["write_oem"]
+
+# Destination extensions that pin the OEM notation. Any other extension (or a direct,
+# destination-less call) leaves the choice to the source's own notation.
+_XML_EXTENSIONS = (".xml",)
+_KVN_EXTENSIONS = (".oem", ".kvn")
 
 # The OEM version the synthesised / re-serialised header declares, and the placeholder a
 # synthesised file uses where the canonical form cannot supply a required META value.
@@ -45,22 +57,50 @@ _REQUIRED_FROM_METADATA = (
 )
 
 
-def write_oem(obj: Canonical) -> bytes:
-    """Serialise ``obj`` (an :class:`Ephemeris`) to CCSDS OEM (KVN) bytes.
+def write_oem(obj: Canonical, suffix: str | None = None) -> bytes:
+    """Serialise ``obj`` (an :class:`Ephemeris`) to CCSDS OEM bytes, in KVN or XML.
 
-    Picks the byte-identical, content-lossless, or synthesised path automatically (see the
-    module docstring). Raises :class:`~orbit_formats.errors.UnsupportedConversionError` if
-    ``obj`` is not an ``Ephemeris`` — OEM is an ephemeris format, and converting another
-    canonical form to it is the conversion layer's job, not the writer's.
+    Picks the byte-identical, content-lossless, or synthesised path automatically, and the
+    KVN or XML notation from ``suffix`` (the destination extension, supplied by
+    :func:`~orbit_formats.write`) else the source's own notation else KVN — see the module
+    docstring. Raises :class:`~orbit_formats.errors.UnsupportedConversionError` if ``obj`` is
+    not an ``Ephemeris`` — OEM is an ephemeris format, and converting another canonical form
+    to it is the conversion layer's job, not the writer's.
     """
     if not isinstance(obj, Ephemeris):
         raise UnsupportedConversionError(type(obj).__name__, "ccsds-oem", "ephemeris")
+    requested = _notation_from_suffix(suffix)
     native = obj.source_native
     if isinstance(native, OemFile):
-        if native.raw_bytes is not None:
+        notation = requested or native.serialization
+        # A byte-identical echo is only valid when the retained bytes are already in the
+        # notation being written; a cross-notation write must re-serialise the model.
+        if native.raw_bytes is not None and notation == native.serialization:
             return native.raw_bytes
-        return _serialize_oem(native)
-    return _serialize_oem(_oemfile_from_ephemeris(obj))
+        return _serialize_oemfile(native, notation)
+    return _serialize_oemfile(_oemfile_from_ephemeris(obj), requested or "kvn")
+
+
+def _notation_from_suffix(suffix: str | None) -> Literal["kvn", "xml"] | None:
+    """The notation a destination extension pins, or ``None`` when it pins neither."""
+    if suffix is None:
+        return None
+    lowered = suffix.lower()
+    if lowered in _XML_EXTENSIONS:
+        return "xml"
+    if lowered in _KVN_EXTENSIONS:
+        return "kvn"
+    return None
+
+
+def _serialize_oemfile(oem: OemFile, notation: Literal["kvn", "xml"]) -> bytes:
+    """Serialise an :class:`OemFile` in the requested notation (content-lossless)."""
+    if notation == "xml":
+        # Imported lazily so a KVN-only write never pulls in the xsdata binding layer.
+        from orbit_formats.adapters.oem_xml import xml_bytes_from_oemfile
+
+        return xml_bytes_from_oemfile(oem)
+    return _serialize_oem(oem)
 
 
 def _oemfile_from_ephemeris(eph: Ephemeris) -> OemFile:

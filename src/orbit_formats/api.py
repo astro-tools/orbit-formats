@@ -81,7 +81,10 @@ def write(
     """Write ``obj`` to ``destination`` in the given (or extension-inferred) format.
 
     The target format comes from an explicit ``format=`` or, failing that, the
-    destination's extension. Raises
+    destination's extension. For a format with more than one notation — CCSDS OEM in KVN
+    vs XML — the destination extension also selects the notation (``.oem`` → KVN, ``.xml``
+    → XML); since ``.xml`` does not name a single NDM message, writing one needs an explicit
+    ``format=`` (e.g. ``write(eph, "sat.xml", format="ccsds-oem")``). Raises
     :class:`~orbit_formats.errors.UnsupportedFormatError` for a read-only target or one
     with no registered writer, and :class:`~orbit_formats.errors.UnknownFormatError` if
     no format can be resolved.
@@ -92,7 +95,10 @@ def write(
     writer = get_writer(format_id)
     if writer is None:
         raise UnsupportedFormatError(f"no writer is registered for format {format_id!r}")
-    Path(destination).write_bytes(writer(obj))
+    # The destination extension lets a multi-notation writer (CCSDS OEM: KVN vs XML) pick:
+    # `.xml` → XML, `.oem` → KVN. Writers that have one notation ignore it.
+    suffix = Path(destination).suffix.lower() or None
+    Path(destination).write_bytes(writer(obj, suffix))
 
 
 def convert(source: SourceInput | Canonical, to: str, *, format: str | None = None) -> Canonical:

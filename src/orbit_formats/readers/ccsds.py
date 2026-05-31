@@ -1,22 +1,25 @@
-"""CCSDS reader — in-house, MIT-licensed KVN parsing of the NDM family into fidelity models.
+"""CCSDS OEM reader — in-house parsing of the Orbit Ephemeris Message into a fidelity model.
 
-The KVN reader is hand-written, extending gmat-run's proven OEM and AEM work; no GPL
-dependency is ever imported at runtime.
+The KVN reader is hand-written, extending gmat-run's proven OEM and AEM work; the XML form
+is parsed through orbit-formats' own MIT xsdata bindings (see
+:mod:`orbit_formats.adapters.oem_xml`). No GPL dependency is ever imported at runtime.
 
-v0.1 covers the OEM (Orbit Ephemeris Message) member in KVN. An OEM is parsed into the
-faithful :class:`OemFile` fidelity model — every field the format defines, across the
-header and one or more segments — and then adapted into a canonical
-:class:`~orbit_formats.canonical.ephemeris.Ephemeris`, with the fidelity model retained as
-``source_native`` so a same-format write stays byte-lossless. A multi-segment file is
-concatenated into one canonical ephemeris; the per-segment metadata is preserved on the
-fidelity model. The XML path and the rest of the NDM family land in v0.2.
+Both notations parse into the *same* faithful :class:`OemFile` fidelity model — every field
+the format defines, across the header and one or more segments — which is then adapted into
+a canonical :class:`~orbit_formats.canonical.ephemeris.Ephemeris`, with the fidelity model
+retained as ``source_native`` so a same-format write stays byte-lossless. The notation a
+file was read from is recorded on the model (``serialization``) so a write re-emits in the
+same notation by default. A multi-segment file is concatenated into one canonical ephemeris;
+the per-segment metadata is preserved on the fidelity model. :func:`read_oem` dispatches on
+content: an XML document (whose first token is a tag) routes to the XML parser, everything
+else to the hand-written KVN scanner.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, replace
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -142,6 +145,11 @@ class OemFile(FidelityModel):
     ``retain_source=True`` (otherwise ``None``); it is a reference to the already-loaded
     buffer, not a copy. The writer echoes it for a byte-identical same-format re-emit; with
     it absent, the writer re-serialises the structured model (content-lossless).
+
+    ``serialization`` records the notation the file was read from — ``"kvn"`` or ``"xml"``,
+    the two encodings of one OEM. Both parse into this same model; the writer re-emits in
+    the recorded notation by default (the destination extension can override it), so a
+    ``.xml`` source round-trips back to XML and a ``.oem`` source back to KVN.
     """
 
     format_name: ClassVar[str] = "ccsds-oem"
@@ -152,26 +160,48 @@ class OemFile(FidelityModel):
     originator: str | None = None
     comments: tuple[str, ...] = ()
     raw_bytes: bytes | None = None
+    serialization: Literal["kvn", "xml"] = "kvn"
 
 
 def read_oem(source: Source) -> Ephemeris:
-    """Read a CCSDS OEM (KVN) into a canonical :class:`Ephemeris`.
+    """Read a CCSDS OEM (KVN or XML) into a canonical :class:`Ephemeris`.
 
     Parses the header and every segment into an :class:`OemFile` fidelity model, retained
     as ``source_native``, then concatenates the segments' state records into one canonical
     ephemeris tagged with the frame, central body, time scale, and object id from the OEM
-    META. Raises :class:`~orbit_formats.errors.MalformedSourceError` for a missing required
-    keyword, an unclosed block, a malformed state or covariance line, an unparseable epoch,
-    or segments that disagree on frame / central body / time system (which cannot be
-    concatenated into one canonical series without a transform v0.1 does not perform).
+    META. The notation is detected from the content — an XML document routes to the xsdata
+    bindings (:mod:`orbit_formats.adapters.oem_xml`), everything else to the hand-written
+    KVN scanner — and both produce the same :class:`OemFile`. Raises
+    :class:`~orbit_formats.errors.MalformedSourceError` for a missing required keyword, an
+    unclosed block, a malformed state or covariance line, an unparseable epoch, malformed
+    XML, or segments that disagree on frame / central body / time system (which cannot be
+    concatenated into one canonical series without a frame/time transform).
 
     When the source opted into retention (``read(..., retain_source=True)``), the verbatim
     bytes are kept on the fidelity model so a same-format write can reproduce them exactly.
     """
-    oem = _OemParser(source.read_text().splitlines()).parse()
+    text = source.read_text()
+    if _looks_like_xml(text):
+        # Imported lazily: the xsdata bindings are large, so the XML path stays free until
+        # an OEM in XML is actually read.
+        from orbit_formats.adapters.oem_xml import oemfile_from_xml
+
+        oem = oemfile_from_xml(source.read_bytes())
+    else:
+        oem = _OemParser(text.splitlines()).parse()
     if source.retain:
         oem = replace(oem, raw_bytes=source.read_bytes())
     return _to_ephemeris(oem)
+
+
+def _looks_like_xml(text: str) -> bool:
+    """Whether ``text`` is an OEM in XML rather than KVN — its first content is an XML tag.
+
+    An OEM XML document opens with ``<?xml`` or ``<oem`` (after an optional byte-order mark
+    and leading whitespace); a KVN OEM opens with ``CCSDS_OEM_VERS`` or a ``COMMENT``. The
+    first non-blank character is therefore a clean discriminator.
+    """
+    return text.lstrip("\ufeff \t\r\n").startswith("<")
 
 
 class _OemParser:
