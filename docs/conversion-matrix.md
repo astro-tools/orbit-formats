@@ -12,7 +12,7 @@ rather than as a bespoke format pair:
 | Form | Category type | Formats (v0.1) |
 |------|---------------|----------------|
 | mean-elements | `MeanElementSet` | `tle` |
-| ephemeris | `Ephemeris` | `ccsds-oem`, `stk-ephemeris`, `gmat-report` (≥2 rows) |
+| ephemeris | `Ephemeris` | `ccsds-oem`, `stk-ephemeris`, `sp3`, `gmat-report` (≥2 rows) |
 | state | `StateVector` | `gmat-report` (1 row) |
 
 A conversion whose source is already in the target's preferred form is a pass-through (and a
@@ -27,6 +27,7 @@ propagation, which is out of scope, so it is refused.
 | `tle` | `MeanElementSet` (mean elements, TEME / UTC) |
 | `ccsds-oem` | `Ephemeris` |
 | `stk-ephemeris` | `Ephemeris` |
+| `sp3` | `Ephemeris` — the first satellite (ITRF, SP3 time system); the full per-satellite set on `source_native` |
 | `gmat-report` | `Ephemeris` (multiple rows) or `StateVector` (one row) |
 
 ## Writing
@@ -43,6 +44,7 @@ since the canonical form never held them.
 |--------|-------------|
 | **CCSDS OEM** | ✅ **lossless** — byte-identical when read with `retain_source=True`, otherwise content-lossless (every field, including covariance and acceleration, preserved) |
 | **STK ephemeris** | ⚠️ **lossy** — the states, frame, central body, and interpolation cross over, but the OEM-required `OBJECT_NAME` and `OBJECT_ID` an STK file does not carry become placeholders, each named by a warning |
+| **SP3** (first satellite) | ⚠️ **lossy** — the satellite's states, the ITRF frame, the Earth centre, and its id cross over, but the OEM-required `OBJECT_ID` SP3 does not carry becomes a placeholder, named by a warning; the clock, accuracy codes, and the other satellites stay on `source_native` |
 | **GMAT report** (≥2 rows) | ⚠️ **lossy** — the OEM-required fields a report does not state (`OBJECT_ID`, `CENTER_NAME`) become placeholders, each named by a warning |
 | **GMAT report** (1 row) | ❌ **unsupported** — a single row reads as a `StateVector`; OEM expects an ephemeris, and bridging the two is not a conversion |
 | **TLE** | ❌ **unsupported** — a mean-element set to an ephemeris requires a propagation (SGP4), which is out of scope; raises `UnsupportedConversionError` |
@@ -51,6 +53,7 @@ since the canonical form never held them.
 |--------|-----------------|
 | **STK ephemeris** | ✅ **lossless** — byte-identical when read with `retain_source=True`, otherwise content-lossless (banner, comments, every meta keyword, and acceleration preserved) |
 | **CCSDS OEM** | ✅ **lossless** for the canonical ephemeris — states, frame, central body, and interpolation cross over (an OEM states all the `.e`-required fields) |
+| **SP3** (first satellite) | ✅ **lossless** for the canonical ephemeris — the satellite's states, the ITRF frame, and the Earth centre cross over (SP3 states all the `.e`-required fields); the clock, accuracy codes, and the other satellites stay on `source_native` |
 | **GMAT report** (≥2 rows) | ⚠️ **lossy** — the STK-required `CentralBody` a report does not state (and `CoordinateSystem`, when its columns omit the frame) becomes a placeholder, named by a warning |
 | **GMAT report** (1 row) | ❌ **unsupported** — a single row reads as a `StateVector`; STK ephemeris expects an ephemeris |
 | **TLE** | ❌ **unsupported** — a mean-element set to an ephemeris requires a propagation (SGP4), which is out of scope; raises `UnsupportedConversionError` |
