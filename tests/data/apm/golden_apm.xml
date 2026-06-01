@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<apm id="CCSDS_APM_VERS" version="2.0">
+  <header>
+    <COMMENT>orbit-formats APM round-trip golden</COMMENT>
+    <CREATION_DATE>2024-03-01T12:00:00</CREATION_DATE>
+    <ORIGINATOR>ORBIT-FORMATS</ORIGINATOR>
+  </header>
+  <body>
+    <segment>
+      <metadata>
+        <COMMENT>single quaternion attitude, EME2000 -&gt; spacecraft body frame</COMMENT>
+        <OBJECT_NAME>OF-SAT</OBJECT_NAME>
+        <OBJECT_ID>2024-018A</OBJECT_ID>
+        <CENTER_NAME>EARTH</CENTER_NAME>
+        <TIME_SYSTEM>UTC</TIME_SYSTEM>
+      </metadata>
+      <data>
+        <EPOCH>2024-03-01T00:00:00</EPOCH>
+        <quaternionState>
+          <REF_FRAME_A>EME2000</REF_FRAME_A>
+          <REF_FRAME_B>SC_BODY</REF_FRAME_B>
+          <quaternion>
+            <Q1>0.195286</Q1>
+            <Q2>-0.07946</Q2>
+            <Q3>0.318876</Q3>
+            <QC>0.924049</QC>
+          </quaternion>
+        </quaternionState>
+      </data>
+    </segment>
+  </body>
+</apm>

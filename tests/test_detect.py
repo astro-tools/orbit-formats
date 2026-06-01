@@ -27,6 +27,7 @@ OEM_KVN = b"CCSDS_OEM_VERS = 2.0\nCREATION_DATE = 2024-08-17T00:00:00\nORIGINATO
 OMM_KVN = b"CCSDS_OMM_VERS = 2.0\nCREATION_DATE = 2024-08-17T00:00:00\n"
 OPM_KVN = b"CCSDS_OPM_VERS = 2.0\n"
 AEM_KVN = b"CCSDS_AEM_VERS = 1.0\n"
+APM_KVN = b"CCSDS_APM_VERS = 1.0\n"
 CDM_KVN = b"CCSDS_CDM_VERS = 1.0\n"
 OEM_XML = (
     b'<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -55,6 +56,7 @@ SPK = b"DAF/SPK " + b"\x00" * 120
         (OMM_KVN, "ccsds-omm"),
         (OPM_KVN, "ccsds-opm"),
         (AEM_KVN, "ccsds-aem"),
+        (APM_KVN, "ccsds-apm"),
         (CDM_KVN, "ccsds-cdm"),
         (OEM_XML, "ccsds-oem"),
         (SP3, "sp3"),
