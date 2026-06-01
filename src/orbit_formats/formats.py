@@ -187,6 +187,9 @@ FORMATS: tuple[FormatSpec, ...] = (
         "ccsds-aem", "attitude", (".aem",), signature=_ccsds_signature("CCSDS_AEM_VERS", "aem")
     ),
     FormatSpec(
+        "ccsds-apm", "attitude", (".apm",), signature=_ccsds_signature("CCSDS_APM_VERS", "apm")
+    ),
+    FormatSpec(
         "ccsds-cdm", "conjunction", (".cdm",), signature=_ccsds_signature("CCSDS_CDM_VERS", "cdm")
     ),
     FormatSpec("sp3", "ephemeris", (".sp3",), writable=False, signature=_sig_sp3),

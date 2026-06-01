@@ -28,6 +28,7 @@ from orbit_formats import (
 from orbit_formats.formats import is_writable, known_format_ids
 from orbit_formats.registry import get_writer
 from orbit_formats.writers.aem import write_aem
+from orbit_formats.writers.apm import write_apm
 from orbit_formats.writers.oem import write_oem
 from orbit_formats.writers.omm import write_omm
 from orbit_formats.writers.opm import write_opm
@@ -275,6 +276,45 @@ def _incomplete_attitude() -> Attitude:
     )
 
 
+_APM_KVN = b"""CCSDS_APM_VERS = 1.0
+CREATION_DATE = 2024-01-01T00:00:00
+ORIGINATOR = ORBIT-FORMATS
+
+META_START
+OBJECT_NAME = SAT
+OBJECT_ID = 2024-001A
+CENTER_NAME = EARTH
+TIME_SYSTEM = UTC
+META_STOP
+
+EPOCH = 2024-01-01T00:00:00
+Q_FRAME_A = EME2000
+Q_FRAME_B = SC_BODY
+Q_DIR = A2B
+Q1 = 0.1
+Q2 = 0.2
+Q3 = 0.3
+QC = 0.927362
+"""
+
+
+def _apm_attitude() -> Attitude:
+    """An attitude read from an APM (carries an ApmFile source_native) — write is lossless."""
+    att = read(_APM_KVN)
+    assert isinstance(att, Attitude)
+    return att
+
+
+def _incomplete_apm_attitude() -> Attitude:
+    """A single quaternion attitude missing OBJECT_ID and both frames — an APM write warns."""
+    return Attitude(
+        metadata=Metadata(object_name="SAT", time_scale="UTC"),
+        attitude_type="QUATERNION",
+        epochs=np.array(["2024-01-01T00:00:00"], dtype="datetime64[ns]"),
+        records=np.array([[0.0, 0.0, 0.0, 1.0]]),
+    )
+
+
 def _bare_mean_set(metadata: Metadata) -> MeanElementSet:
     """A bare mean-element set (no source_native) with the given metadata — for the lossy cases."""
     return MeanElementSet(
@@ -376,6 +416,18 @@ _META_CASES = [
         lambda: write_aem(_incomplete_attitude()),
         loses=True,
         writer_format="ccsds-aem",
+    ),
+    _MetaCase(
+        "ccsds-apm write: content-lossless re-serialise",
+        lambda: write_apm(_apm_attitude()),
+        loses=False,
+        writer_format="ccsds-apm",
+    ),
+    _MetaCase(
+        "ccsds-apm write: synthesised, missing required fields",
+        lambda: write_apm(_incomplete_apm_attitude()),
+        loses=True,
+        writer_format="ccsds-apm",
     ),
 ]
 
