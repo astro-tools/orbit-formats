@@ -16,7 +16,7 @@ from orbit_formats.canonical.ephemeris import Ephemeris
 from orbit_formats.canonical.fidelity import FidelityModel
 from orbit_formats.canonical.metadata import Metadata, Provenance
 from orbit_formats.canonical.state import KeplerianElements, StateVector
-from orbit_formats.canonical.tracking import Tracking
+from orbit_formats.canonical.tracking import Tracking, TrackingObservation
 
 __all__ = [
     "Attitude",
@@ -31,4 +31,5 @@ __all__ = [
     "Provenance",
     "StateVector",
     "Tracking",
+    "TrackingObservation",
 ]

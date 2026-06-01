@@ -25,6 +25,7 @@ from orbit_formats.canonical.conjunction import Conjunction
 from orbit_formats.canonical.elements import MeanElementSet
 from orbit_formats.canonical.ephemeris import Ephemeris
 from orbit_formats.canonical.state import StateVector
+from orbit_formats.canonical.tracking import Tracking
 from orbit_formats.convert.graph import route
 from orbit_formats.detect import detect_format_from_source
 from orbit_formats.errors import (
@@ -51,6 +52,7 @@ _FORM_BY_TYPE: dict[type[Canonical], str] = {
     MeanElementSet: "mean-elements",
     Attitude: "attitude",
     Conjunction: "conjunction",
+    Tracking: "tracking",
 }
 
 

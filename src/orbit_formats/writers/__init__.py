@@ -7,4 +7,14 @@ Importing this package imports each writer module so that registering a writer a
 public surface is a one-time import side effect (see :mod:`orbit_formats.registry`).
 """
 
-from orbit_formats.writers import aem, apm, cdm, oem, omm, opm, stk_ephemeris, tle  # noqa: F401
+from orbit_formats.writers import (  # noqa: F401
+    aem,
+    apm,
+    cdm,
+    oem,
+    omm,
+    opm,
+    stk_ephemeris,
+    tdm,
+    tle,
+)

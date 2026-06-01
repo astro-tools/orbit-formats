@@ -23,6 +23,8 @@ from orbit_formats import (
     ModelApproximationWarning,
     PrecisionLossWarning,
     StateVector,
+    Tracking,
+    TrackingObservation,
     convert,
     read,
     warn_lossy,
@@ -36,6 +38,7 @@ from orbit_formats.writers.oem import write_oem
 from orbit_formats.writers.omm import write_omm
 from orbit_formats.writers.opm import write_opm
 from orbit_formats.writers.stk_ephemeris import write_stk_ephemeris
+from orbit_formats.writers.tdm import write_tdm
 from orbit_formats.writers.tle import write_tle
 
 CONCRETE_WARNINGS = [DroppedFieldWarning, ModelApproximationWarning, PrecisionLossWarning]
@@ -354,6 +357,27 @@ def _incomplete_cdm_conjunction() -> Conjunction:
     )
 
 
+_TDM_GOLDEN = Path(__file__).parent / "data" / "tdm" / "golden_tdm.tdm"
+
+
+def _tdm_tracking() -> Tracking:
+    """A tracking set read from a TDM (carries a TdmFile source_native) — write is lossless."""
+    tracking = read(_TDM_GOLDEN.read_bytes())
+    assert isinstance(tracking, Tracking)
+    return tracking
+
+
+def _incomplete_tdm_tracking() -> Tracking:
+    """A bare tracking set missing the TDM-required TIME_SYSTEM / PARTICIPANT — write warns."""
+    return Tracking(
+        metadata=Metadata(),
+        participants=(),
+        observations=(
+            TrackingObservation("RANGE", np.datetime64("2024-01-01T00:00:00", "ns"), 1.0),
+        ),
+    )
+
+
 def _bare_mean_set(metadata: Metadata) -> MeanElementSet:
     """A bare mean-element set (no source_native) with the given metadata — for the lossy cases."""
     return MeanElementSet(
@@ -479,6 +503,18 @@ _META_CASES = [
         lambda: write_cdm(_incomplete_cdm_conjunction()),
         loses=True,
         writer_format="ccsds-cdm",
+    ),
+    _MetaCase(
+        "ccsds-tdm write: content-lossless re-serialise",
+        lambda: write_tdm(_tdm_tracking()),
+        loses=False,
+        writer_format="ccsds-tdm",
+    ),
+    _MetaCase(
+        "ccsds-tdm write: synthesised, missing required META",
+        lambda: write_tdm(_incomplete_tdm_tracking()),
+        loses=True,
+        writer_format="ccsds-tdm",
     ),
 ]
 
