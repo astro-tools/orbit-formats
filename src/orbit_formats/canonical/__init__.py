@@ -10,7 +10,7 @@ full fidelity without polluting the canonical schema.
 
 from orbit_formats.canonical.attitude import Attitude
 from orbit_formats.canonical.base import Canonical
-from orbit_formats.canonical.conjunction import Conjunction
+from orbit_formats.canonical.conjunction import Conjunction, ConjunctionObject
 from orbit_formats.canonical.elements import MeanElementSet
 from orbit_formats.canonical.ephemeris import Ephemeris
 from orbit_formats.canonical.fidelity import FidelityModel
@@ -22,6 +22,7 @@ __all__ = [
     "Attitude",
     "Canonical",
     "Conjunction",
+    "ConjunctionObject",
     "Ephemeris",
     "FidelityModel",
     "KeplerianElements",

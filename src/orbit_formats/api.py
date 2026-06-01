@@ -21,6 +21,7 @@ from pathlib import Path
 
 from orbit_formats.canonical.attitude import Attitude
 from orbit_formats.canonical.base import Canonical
+from orbit_formats.canonical.conjunction import Conjunction
 from orbit_formats.canonical.elements import MeanElementSet
 from orbit_formats.canonical.ephemeris import Ephemeris
 from orbit_formats.canonical.state import StateVector
@@ -49,6 +50,7 @@ _FORM_BY_TYPE: dict[type[Canonical], str] = {
     StateVector: "state",
     MeanElementSet: "mean-elements",
     Attitude: "attitude",
+    Conjunction: "conjunction",
 }
 
 

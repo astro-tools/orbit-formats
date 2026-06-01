@@ -11,6 +11,7 @@ from orbit_formats.readers import (  # noqa: F401
     ccsds,
     ccsds_aem,
     ccsds_apm,
+    ccsds_cdm,
     ccsds_omm,
     ccsds_opm,
     gmat_report,

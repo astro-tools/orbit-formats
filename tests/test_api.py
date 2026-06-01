@@ -121,10 +121,10 @@ def test_read_explicit_format_overrides_detection(isolated_registry: None) -> No
 def test_write_without_a_registered_writer_is_unsupported(
     isolated_registry: None, tmp_path: Path
 ) -> None:
-    # ccsds-cdm is a writable format whose writer is not implemented yet, so it hits the
+    # spk is a writable format whose writer is not implemented yet, so it hits the
     # "no writer registered" branch (distinct from a read-only target like sp3 / rinex-nav).
     with pytest.raises(UnsupportedFormatError, match="no writer is registered"):
-        write(_ephemeris(), tmp_path / "out.cdm")
+        write(_ephemeris(), tmp_path / "out.spk")
 
 
 def test_write_to_a_read_only_format_is_rejected(isolated_registry: None, tmp_path: Path) -> None:
