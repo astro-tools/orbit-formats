@@ -24,9 +24,15 @@ The category types are:
 | `StateVector` | one Cartesian state (position + velocity) at one epoch | yes — one row |
 | `Ephemeris` | a Cartesian state-vector time series | yes — N rows |
 | `MeanElementSet` | a mean-element set (TLE / OMM-style), mean elements at an epoch | yes — one row |
+| `Attitude` | an attitude history (CCSDS AEM / APM) | no |
+| `Conjunction` | a close-approach record between two objects (CCSDS CDM) | no |
+| `Tracking` | a tracking-data set (CCSDS TDM) | no |
+| `Combined` | several member messages bundled in a combined NDM | no |
 
-(`Attitude`, `Conjunction`, and `Tracking` are reserved for later versions and carry no
-payload yet.)
+A `Combined` is the one *container* among them: it is what `read` returns for a combined
+(aggregate) NDM, holding an ordered tuple of the member canonical objects above on
+`Combined.messages` plus the wrapper's `message_id` and comments. It carries no payload of its
+own — each member keeps its own metadata, payload, and `source_native`.
 
 An **adapter** maps each fidelity model to and from the canonical metamodel. Reading routes
 `format → fidelity model → canonical`; writing routes `canonical → fidelity model →

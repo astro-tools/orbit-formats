@@ -16,12 +16,12 @@ fidelity model rather than dropped.
 | GMAT report | `gmat-report` | ✓ | — | ephemeris / state |
 | STK ephemeris | `stk-ephemeris` | ✓ | ✓ | ephemeris |
 | SP3 (SP3-c / SP3-d) | `sp3` | ✓ | — | ephemeris |
+| CCSDS combined NDM (KVN + XML) | `ccsds-ndm` | ✓ | ✓ | aggregate of NDM messages |
 
 TLE and OMM share the **mean-element set** canonical form, so they convert into each other:
-read a TLE and write an OMM, or read an OMM and write a TLE. Other formats — the rest of the
-CCSDS NDM family (AEM / CDM), SPICE SPK, RINEX navigation — are recognised by detection but
-not yet read or written; a `read` of one raises `UnsupportedFormatError`. They land in later
-versions.
+read a TLE and write an OMM, or read an OMM and write a TLE. SPICE SPK and RINEX navigation are
+recognised by detection but not yet read or written; a `read` of one raises
+`UnsupportedFormatError`. They land in later versions.
 
 **CCSDS notation — KVN and XML.** The OEM, OMM, and OPM each read and write in both CCSDS
 notations under a single format id. The two notations are held at **parity**: KVN and XML parse
@@ -213,3 +213,37 @@ writer, so a write to `.sp3` raises `UnsupportedFormatError`.
   or the `.sp3` extension. The reader parses SP3-c and SP3-d; another version, a malformed
   header, a record with too few columns or a non-numeric value, or a satellite whose record
   count disagrees with the epoch count raise `MalformedSourceError`.
+
+## CCSDS combined NDM (KVN + XML) — `ccsds-ndm`
+
+A combined (aggregate) NDM holds several individual NDM messages — an OPM and a CDM, several
+OEMs, any mix — in one file. `read` returns a **`Combined`**: an ordered tuple of the member
+canonical objects on `Combined.messages`, plus the wrapper's `message_id` and `comments`. Each
+member is exactly the object reading that message on its own would yield — its full identity and
+`source_native` intact — so the members of `read("bundle.ndm")` are an `Ephemeris`, a
+`Conjunction`, a `StateVector`, and so on, ready to use individually.
+
+- **Two notations.** XML is the standardised `<ndm>` wrapper. KVN has no standardised wrapper,
+  so the aggregate is the member KVN messages **concatenated**, each keeping its
+  `CCSDS_<TYPE>_VERS =` header. On write the destination extension selects the notation (`.ndm`
+  / `.kvn` → KVN, `.xml` → XML); since `.xml` names no single message, writing one needs an
+  explicit `format="ccsds-ndm"`.
+- **Members group by type.** The XML `<ndm>` stores its children in one list per message type,
+  so both notations emit the members grouped by type (and in their original order within a
+  type). The two are held at **parity**: a combined NDM read from either carries the same
+  members, and a KVN → XML → KVN round trip reproduces it.
+- **The member format follows `source_native`.** Each member is written back as the NDM message
+  it was read as — an `Ephemeris` whose native is a `ccsds-oem` writes as an `<oem>` — so the
+  members of a `Combined` you assemble yourself are objects read from (or otherwise tagged with)
+  an NDM message.
+- **The wrapper `MESSAGE_ID`.** XML carries it; KVN has nowhere to put it, so a KVN write
+  reports it as a loss through the [lossy-conversion](lossy-conversions.md) framework. The
+  wrapper comments carry in both notations.
+- **Detection:** the `<ndm>` root element (XML), or two or more `CCSDS_<TYPE>_VERS =` headers in
+  one file (KVN) — either outranks the individual members, so a concatenation of an OEM and an
+  OMM reads as one combined NDM. A member type this version has no reader for (an `acm` or `rdm`
+  child) raises `UnsupportedFormatError` rather than being dropped; a single-member KVN "bundle"
+  raises `MalformedSourceError`.
+- **Not a conversion target.** An aggregate carries no single canonical form — it composes
+  messages rather than mapping between forms — so `convert` to or from `ccsds-ndm` raises
+  `UnsupportedConversionError`.

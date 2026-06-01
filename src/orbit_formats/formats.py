@@ -10,7 +10,8 @@ without a cycle.
 A format's *preferred canonical form* is one of: ``ephemeris`` (a Cartesian state-vector
 time series), ``state`` (a single Cartesian state), ``mean-elements`` (a TLE/OMM-style
 mean-element set), ``attitude`` (an attitude history), ``conjunction`` (a close approach),
-or ``tracking`` (a tracking-data set).
+``tracking`` (a tracking-data set), or ``ndm`` (the combined-NDM aggregate — a container of
+several of the above, which carries no single form and so does not participate in conversion).
 """
 
 from __future__ import annotations
@@ -38,10 +39,16 @@ __all__ = [
 
 
 class Confidence(IntEnum):
-    """How strongly a detector matched. The highest-confidence match wins."""
+    """How strongly a detector matched. The highest-confidence match wins.
+
+    ``CONTAINER`` outranks ``HIGH`` so the combined-NDM aggregate beats its own members on
+    the inevitable tie: an ``<ndm>`` wrapper (or a KVN concatenation) also matches each child
+    message's signature, and the container is the more specific, correct answer.
+    """
 
     NONE = 0
     HIGH = 1
+    CONTAINER = 2
 
 
 # A signature inspects the raw bytes (binary magic) and/or the decoded text prefix and
@@ -125,6 +132,26 @@ def _ccsds_signature(kvn_keyword: str, xml_root: str) -> Signature:
     return signature
 
 
+# The combined / aggregate NDM. XML opens with the ``<ndm>`` wrapper element; KVN has no
+# standardised wrapper, so the aggregate is the individual KVN messages concatenated, each
+# keeping its own ``CCSDS_<TYPE>_VERS =`` header — two or more of those header lines is the
+# signal. Either match outranks the members (``Confidence.CONTAINER``): an ``<ndm>`` also
+# satisfies each child's ``<oem>`` / ``<cdm>`` signature, and a concatenation satisfies each
+# child's KVN signature, so the container must win the tie.
+_NDM_XML_OPEN_RE = re.compile(r"<ndm\b")
+_CCSDS_VERS_RE = re.compile(r"^\s*CCSDS_[A-Z0-9]+_VERS\s*=", re.MULTILINE)
+
+
+def _sig_ndm(data: bytes, text: str | None) -> Confidence:
+    if text is None:
+        return Confidence.NONE
+    if _NDM_XML_OPEN_RE.search(text) and ("urn:ccsds:" in text or "CCSDS_" in text):
+        return Confidence.CONTAINER
+    if len(_CCSDS_VERS_RE.findall(text)) >= 2:
+        return Confidence.CONTAINER
+    return Confidence.NONE
+
+
 _STK_RE = re.compile(r"^stk\.v\.\d", re.IGNORECASE)
 _RINEX_RE = re.compile(r"RINEX VERSION\s*/\s*TYPE")
 
@@ -198,6 +225,7 @@ FORMATS: tuple[FormatSpec, ...] = (
     FormatSpec(
         "ccsds-ocm", "ephemeris", (".ocm",), signature=_ccsds_signature("CCSDS_OCM_VERS", "ocm")
     ),
+    FormatSpec("ccsds-ndm", "ndm", (".ndm",), signature=_sig_ndm),
     FormatSpec("sp3", "ephemeris", (".sp3",), writable=False, signature=_sig_sp3),
     FormatSpec("stk-ephemeris", "ephemeris", (".e", ".ephem"), signature=_sig_stk),
     FormatSpec("gmat-report", "ephemeris", (".report",), writable=False, signature=None),

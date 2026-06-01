@@ -10,6 +10,7 @@ from orbit_formats.api import convert, read, write
 from orbit_formats.canonical import (
     Attitude,
     Canonical,
+    Combined,
     Conjunction,
     ConjunctionObject,
     Ephemeris,
@@ -54,6 +55,7 @@ __all__ = [
     "AmbiguousFormatError",
     "Attitude",
     "Canonical",
+    "Combined",
     "Conjunction",
     "ConjunctionObject",
     "DroppedField",
