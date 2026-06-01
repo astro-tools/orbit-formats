@@ -10,6 +10,7 @@ full fidelity without polluting the canonical schema.
 
 from orbit_formats.canonical.attitude import Attitude
 from orbit_formats.canonical.base import Canonical
+from orbit_formats.canonical.combined import Combined
 from orbit_formats.canonical.conjunction import Conjunction, ConjunctionObject
 from orbit_formats.canonical.elements import MeanElementSet
 from orbit_formats.canonical.ephemeris import Ephemeris
@@ -21,6 +22,7 @@ from orbit_formats.canonical.tracking import Tracking, TrackingObservation
 __all__ = [
     "Attitude",
     "Canonical",
+    "Combined",
     "Conjunction",
     "ConjunctionObject",
     "Ephemeris",
