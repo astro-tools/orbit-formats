@@ -12,6 +12,8 @@ import pytest
 
 from orbit_formats import (
     Attitude,
+    Conjunction,
+    ConjunctionObject,
     DroppedField,
     DroppedFieldWarning,
     Ephemeris,
@@ -29,6 +31,7 @@ from orbit_formats.formats import is_writable, known_format_ids
 from orbit_formats.registry import get_writer
 from orbit_formats.writers.aem import write_aem
 from orbit_formats.writers.apm import write_apm
+from orbit_formats.writers.cdm import write_cdm
 from orbit_formats.writers.oem import write_oem
 from orbit_formats.writers.omm import write_omm
 from orbit_formats.writers.opm import write_opm
@@ -315,6 +318,42 @@ def _incomplete_apm_attitude() -> Attitude:
     )
 
 
+_CDM_GOLDEN = Path(__file__).parent / "data" / "cdm" / "golden_cdm.cdm"
+
+
+def _cdm_conjunction() -> Conjunction:
+    """A conjunction read from a CDM (carries a CdmFile source_native) — write is lossless."""
+    conj = read(_CDM_GOLDEN.read_bytes())
+    assert isinstance(conj, Conjunction)
+    return conj
+
+
+def _incomplete_cdm_conjunction() -> Conjunction:
+    """A bare conjunction missing the CDM-required per-object metadata — a CDM write warns."""
+    objects = (
+        ConjunctionObject(
+            label="OBJECT1",
+            object_designator="1",
+            ref_frame="EME2000",
+            state=np.zeros(6),
+            covariance=np.eye(6),
+        ),
+        ConjunctionObject(
+            label="OBJECT2",
+            object_designator="2",
+            ref_frame="EME2000",
+            state=np.zeros(6),
+            covariance=np.eye(6),
+        ),
+    )
+    return Conjunction(
+        metadata=Metadata(time_scale="UTC"),
+        tca=np.datetime64("2024-01-01T00:00:00", "ns"),
+        miss_distance=1.0,
+        objects=objects,
+    )
+
+
 def _bare_mean_set(metadata: Metadata) -> MeanElementSet:
     """A bare mean-element set (no source_native) with the given metadata — for the lossy cases."""
     return MeanElementSet(
@@ -428,6 +467,18 @@ _META_CASES = [
         lambda: write_apm(_incomplete_apm_attitude()),
         loses=True,
         writer_format="ccsds-apm",
+    ),
+    _MetaCase(
+        "ccsds-cdm write: content-lossless re-serialise",
+        lambda: write_cdm(_cdm_conjunction()),
+        loses=False,
+        writer_format="ccsds-cdm",
+    ),
+    _MetaCase(
+        "ccsds-cdm write: synthesised, missing required fields",
+        lambda: write_cdm(_incomplete_cdm_conjunction()),
+        loses=True,
+        writer_format="ccsds-cdm",
     ),
 ]
 
