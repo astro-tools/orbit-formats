@@ -40,6 +40,12 @@ the CLI) to rotate the Cartesian state into another frame; see
 | `stk-ephemeris` | `Ephemeris` |
 | `sp3` | `Ephemeris` — the first satellite (ITRF, SP3 time system); the full per-satellite set on `source_native` |
 | `gmat-report` | `Ephemeris` (≥2 rows) or `StateVector` (one row) |
+| `ccsds-ndm` | `Combined` — an ordered tuple of the member messages, each read into its own type |
+
+A `ccsds-ndm` aggregate is read and written but never **converted**: it carries no single
+canonical form, so it composes member messages rather than mapping between forms. `convert` to
+or from `ccsds-ndm` raises `UnsupportedConversionError`; read it, work with its members, and
+write it back.
 
 ## Writing
 
