@@ -9,8 +9,8 @@ without a cycle.
 
 A format's *preferred canonical form* is one of: ``ephemeris`` (a Cartesian state-vector
 time series), ``state`` (a single Cartesian state), ``mean-elements`` (a TLE/OMM-style
-mean-element set), ``attitude`` (an attitude history), or ``conjunction`` (a close
-approach). The last two are reserved for category types that are not yet implemented.
+mean-element set), ``attitude`` (an attitude history), ``conjunction`` (a close approach),
+or ``tracking`` (a tracking-data set).
 """
 
 from __future__ import annotations
@@ -191,6 +191,9 @@ FORMATS: tuple[FormatSpec, ...] = (
     ),
     FormatSpec(
         "ccsds-cdm", "conjunction", (".cdm",), signature=_ccsds_signature("CCSDS_CDM_VERS", "cdm")
+    ),
+    FormatSpec(
+        "ccsds-tdm", "tracking", (".tdm",), signature=_ccsds_signature("CCSDS_TDM_VERS", "tdm")
     ),
     FormatSpec("sp3", "ephemeris", (".sp3",), writable=False, signature=_sig_sp3),
     FormatSpec("stk-ephemeris", "ephemeris", (".e", ".ephem"), signature=_sig_stk),

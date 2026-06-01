@@ -20,6 +20,7 @@ from orbit_formats.canonical import (
     Provenance,
     StateVector,
     Tracking,
+    TrackingObservation,
 )
 from orbit_formats.detect import detect_format
 from orbit_formats.errors import (
@@ -74,6 +75,7 @@ __all__ = [
     "Source",
     "StateVector",
     "Tracking",
+    "TrackingObservation",
     "UnitSpec",
     "UnknownFormatError",
     "UnsupportedConversionError",
