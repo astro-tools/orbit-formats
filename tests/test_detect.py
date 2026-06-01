@@ -30,6 +30,8 @@ AEM_KVN = b"CCSDS_AEM_VERS = 1.0\n"
 APM_KVN = b"CCSDS_APM_VERS = 1.0\n"
 CDM_KVN = b"CCSDS_CDM_VERS = 1.0\n"
 TDM_KVN = b"CCSDS_TDM_VERS = 2.0\n"
+OCM_KVN = b"CCSDS_OCM_VERS = 3.0\n"
+OCM_XML = b'<?xml version="1.0" encoding="UTF-8"?>\n<ocm id="CCSDS_OCM_VERS" version="3.0">\n'
 OEM_XML = (
     b'<?xml version="1.0" encoding="UTF-8"?>\n'
     b'<oem id="CCSDS_OEM_VERS" version="2.0" '
@@ -60,6 +62,8 @@ SPK = b"DAF/SPK " + b"\x00" * 120
         (APM_KVN, "ccsds-apm"),
         (CDM_KVN, "ccsds-cdm"),
         (TDM_KVN, "ccsds-tdm"),
+        (OCM_KVN, "ccsds-ocm"),
+        (OCM_XML, "ccsds-ocm"),
         (OEM_XML, "ccsds-oem"),
         (SP3, "sp3"),
         (STK, "stk-ephemeris"),
