@@ -34,6 +34,7 @@ from orbit_formats.registry import get_writer
 from orbit_formats.writers.aem import write_aem
 from orbit_formats.writers.apm import write_apm
 from orbit_formats.writers.cdm import write_cdm
+from orbit_formats.writers.ocm import write_ocm
 from orbit_formats.writers.oem import write_oem
 from orbit_formats.writers.omm import write_omm
 from orbit_formats.writers.opm import write_opm
@@ -357,6 +358,26 @@ def _incomplete_cdm_conjunction() -> Conjunction:
     )
 
 
+_OCM_GOLDEN = Path(__file__).parent / "data" / "ocm" / "golden_ocm.ocm"
+
+
+def _ocm_ephemeris() -> Ephemeris:
+    """An ephemeris read from the OCM golden (carries an OcmFile source_native) — write lossless."""
+    eph = read(_OCM_GOLDEN.read_bytes())
+    assert isinstance(eph, Ephemeris)
+    return eph
+
+
+def _incomplete_ocm_ephemeris() -> Ephemeris:
+    """An ephemeris missing CENTER_NAME, TRAJ_REF_FRAME, and TIME_SYSTEM — an OCM write warns."""
+    return Ephemeris(
+        metadata=Metadata(object_name="SAT", object_id="2024-001A"),
+        epochs=np.array(["2024-01-01T00:00:00"], dtype="datetime64[ns]"),
+        positions=np.array([[7000.0, 0.0, 0.0]]),
+        velocities=np.array([[0.0, 7.5, 0.0]]),
+    )
+
+
 _TDM_GOLDEN = Path(__file__).parent / "data" / "tdm" / "golden_tdm.tdm"
 
 
@@ -515,6 +536,18 @@ _META_CASES = [
         lambda: write_tdm(_incomplete_tdm_tracking()),
         loses=True,
         writer_format="ccsds-tdm",
+    ),
+    _MetaCase(
+        "ccsds-ocm write: content-lossless re-serialise",
+        lambda: write_ocm(_ocm_ephemeris()),
+        loses=False,
+        writer_format="ccsds-ocm",
+    ),
+    _MetaCase(
+        "ccsds-ocm write: synthesised, missing required metadata",
+        lambda: write_ocm(_incomplete_ocm_ephemeris()),
+        loses=True,
+        writer_format="ccsds-ocm",
     ),
 ]
 

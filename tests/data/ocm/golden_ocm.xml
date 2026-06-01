@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ocm id="CCSDS_OCM_VERS" version="3.0">
+  <header>
+    <COMMENT>OCM golden fixture for the orbit-formats test suite</COMMENT>
+    <CREATION_DATE>2024-03-12T14:28:15</CREATION_DATE>
+    <ORIGINATOR>ASTRO-TOOLS</ORIGINATOR>
+    <MESSAGE_ID>OCM-GOLDEN-0001</MESSAGE_ID>
+  </header>
+  <body>
+    <segment>
+      <metadata>
+        <COMMENT>comprehensive message exercising the orbit-relevant blocks</COMMENT>
+        <OBJECT_NAME>POLARIS-1</OBJECT_NAME>
+        <INTERNATIONAL_DESIGNATOR>2024-013A</INTERNATIONAL_DESIGNATOR>
+        <OBJECT_DESIGNATOR>58724</OBJECT_DESIGNATOR>
+        <TIME_SYSTEM>UTC</TIME_SYSTEM>
+        <EPOCH_TZERO>2024-03-12T00:00:00</EPOCH_TZERO>
+        <OPS_STATUS>OPERATIONAL</OPS_STATUS>
+        <ORBIT_CATEGORY>LEO</ORBIT_CATEGORY>
+        <TAIMUTC_AT_TZERO units="s">37.0</TAIMUTC_AT_TZERO>
+      </metadata>
+      <data>
+        <traj>
+          <COMMENT>predicted Cartesian state history</COMMENT>
+          <TRAJ_ID>TRAJ-1</TRAJ_ID>
+          <TRAJ_BASIS>PREDICTED</TRAJ_BASIS>
+          <INTERPOLATION>HERMITE</INTERPOLATION>
+          <INTERPOLATION_DEGREE>5</INTERPOLATION_DEGREE>
+          <CENTER_NAME>EARTH</CENTER_NAME>
+          <TRAJ_REF_FRAME>EME2000</TRAJ_REF_FRAME>
+          <TRAJ_TYPE>CARTPV</TRAJ_TYPE>
+          <trajLine>0.0 6800.0 0.0 0.0 0.0 7.5 1.0</trajLine>
+          <trajLine>600.0 6780.0 450.0 80.0 -0.5 7.48 1.0</trajLine>
+          <trajLine>1200.0 6720.0 895.0 159.0 -1.0 7.42 0.99</trajLine>
+        </traj>
+        <phys>
+          <COMMENT>mass and area</COMMENT>
+          <DRAG_COEFF_NOM>2.2</DRAG_COEFF_NOM>
+          <WET_MASS units="kg">1500.0</WET_MASS>
+          <DRY_MASS units="kg">980.0</DRY_MASS>
+          <SRP_CONST_AREA units="m**2">15.4</SRP_CONST_AREA>
+        </phys>
+        <cov>
+          <COMMENT>position-velocity covariance</COMMENT>
+          <COV_ID>COV-1</COV_ID>
+          <COV_REF_FRAME>RTN</COV_REF_FRAME>
+          <COV_TYPE>CARTPV</COV_TYPE>
+          <COV_ORDERING>LTM</COV_ORDERING>
+          <covLine>1.0</covLine>
+          <covLine>0.0 1.0</covLine>
+          <covLine>0.0 0.0 1.0</covLine>
+          <covLine>0.0 0.0 0.0 0.0001</covLine>
+          <covLine>0.0 0.0 0.0 0.0 0.0001</covLine>
+          <covLine>0.0 0.0 0.0 0.0 0.0 0.0001</covLine>
+        </cov>
+        <man>
+          <COMMENT>stationkeeping burn</COMMENT>
+          <MAN_ID>MAN-1</MAN_ID>
+          <MAN_DEVICE_ID>THR-1</MAN_DEVICE_ID>
+          <MAN_REF_FRAME>RTN</MAN_REF_FRAME>
+          <DC_TYPE>TIME</DC_TYPE>
+          <MAN_COMPOSITION>TIME_RELATIVE,DV_X,DV_Y,DV_Z</MAN_COMPOSITION>
+          <MAN_UNITS>km/s</MAN_UNITS>
+          <manLine>1800.0 0.0 0.0 0.012</manLine>
+        </man>
+        <pert>
+          <ATMOSPHERIC_MODEL>NRLMSISE-00</ATMOSPHERIC_MODEL>
+          <GRAVITY_MODEL>EGM2008</GRAVITY_MODEL>
+          <OBLATE_FLATTENING>0.0033528</OBLATE_FLATTENING>
+        </pert>
+        <od>
+          <OD_ID>OD-1</OD_ID>
+          <OD_METHOD>SEQUENTIAL_BATCH</OD_METHOD>
+          <OD_EPOCH>2024-03-11T23:50:00</OD_EPOCH>
+          <OBS_AVAILABLE>124</OBS_AVAILABLE>
+          <OBS_USED>120</OBS_USED>
+        </od>
+        <user>
+          <USER_DEFINED parameter="OPERATOR_NOTE">nominal</USER_DEFINED>
+        </user>
+      </data>
+    </segment>
+  </body>
+</ocm>
