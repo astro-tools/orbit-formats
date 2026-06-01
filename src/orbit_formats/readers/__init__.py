@@ -9,6 +9,8 @@ public surface is a one-time import side effect (see :mod:`orbit_formats.registr
 
 from orbit_formats.readers import (  # noqa: F401
     ccsds,
+    ccsds_aem,
+    ccsds_apm,
     ccsds_omm,
     ccsds_opm,
     gmat_report,

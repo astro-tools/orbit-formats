@@ -19,6 +19,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from orbit_formats.canonical.attitude import Attitude
 from orbit_formats.canonical.base import Canonical
 from orbit_formats.canonical.elements import MeanElementSet
 from orbit_formats.canonical.ephemeris import Ephemeris
@@ -47,6 +48,7 @@ _FORM_BY_TYPE: dict[type[Canonical], str] = {
     Ephemeris: "ephemeris",
     StateVector: "state",
     MeanElementSet: "mean-elements",
+    Attitude: "attitude",
 }
 
 
