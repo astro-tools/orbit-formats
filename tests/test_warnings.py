@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from orbit_formats import (
+    Attitude,
     DroppedField,
     DroppedFieldWarning,
     Ephemeris,
@@ -26,6 +27,7 @@ from orbit_formats import (
 )
 from orbit_formats.formats import is_writable, known_format_ids
 from orbit_formats.registry import get_writer
+from orbit_formats.writers.aem import write_aem
 from orbit_formats.writers.oem import write_oem
 from orbit_formats.writers.omm import write_omm
 from orbit_formats.writers.opm import write_opm
@@ -232,6 +234,47 @@ def _incomplete_state_vector() -> StateVector:
     )
 
 
+_AEM_KVN = b"""CCSDS_AEM_VERS = 1.0
+CREATION_DATE = 2024-01-01T00:00:00
+ORIGINATOR = ORBIT-FORMATS
+
+META_START
+OBJECT_NAME = SAT
+OBJECT_ID = 2024-001A
+CENTER_NAME = EARTH
+REF_FRAME_A = EME2000
+REF_FRAME_B = SC_BODY
+TIME_SYSTEM = UTC
+START_TIME = 2024-01-01T00:00:00
+STOP_TIME = 2024-01-01T00:01:00
+ATTITUDE_TYPE = QUATERNION
+QUATERNION_TYPE = LAST
+META_STOP
+
+DATA_START
+2024-01-01T00:00:00 0.1 0.2 0.3 0.927362
+2024-01-01T00:01:00 0.11 0.21 0.31 0.92
+DATA_STOP
+"""
+
+
+def _aem_attitude() -> Attitude:
+    """An attitude read from an AEM (carries an AemFile source_native) — write is lossless."""
+    att = read(_AEM_KVN)
+    assert isinstance(att, Attitude)
+    return att
+
+
+def _incomplete_attitude() -> Attitude:
+    """An attitude missing OBJECT_ID and both frames — an AEM write must warn for each."""
+    return Attitude(
+        metadata=Metadata(object_name="SAT", time_scale="UTC"),
+        attitude_type="QUATERNION",
+        epochs=np.array(["2024-01-01T00:00:00"], dtype="datetime64[ns]"),
+        records=np.array([[0.0, 0.0, 0.0, 1.0]]),
+    )
+
+
 def _bare_mean_set(metadata: Metadata) -> MeanElementSet:
     """A bare mean-element set (no source_native) with the given metadata — for the lossy cases."""
     return MeanElementSet(
@@ -321,6 +364,18 @@ _META_CASES = [
         "convert: same-form ephemeris -> ccsds-oem",
         lambda: convert(_oem_ephemeris(), to="ccsds-oem"),
         loses=False,
+    ),
+    _MetaCase(
+        "ccsds-aem write: content-lossless re-serialise",
+        lambda: write_aem(_aem_attitude()),
+        loses=False,
+        writer_format="ccsds-aem",
+    ),
+    _MetaCase(
+        "ccsds-aem write: synthesised, missing required META",
+        lambda: write_aem(_incomplete_attitude()),
+        loses=True,
+        writer_format="ccsds-aem",
     ),
 ]
 

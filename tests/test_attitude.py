@@ -14,9 +14,7 @@ from orbit_formats.canonical.attitude import ATTITUDE_TYPES
 
 
 def _quaternion_attitude(rows: int = 2) -> Attitude:
-    epochs = np.array(
-        [f"2024-01-01T00:0{i}:00" for i in range(rows)], dtype="datetime64[ns]"
-    )
+    epochs = np.array([f"2024-01-01T00:0{i}:00" for i in range(rows)], dtype="datetime64[ns]")
     records = np.array([[0.1, 0.2, 0.3, 0.927], [0.11, 0.21, 0.31, 0.92]][:rows])
     return Attitude(
         metadata=Metadata(object_name="SAT", time_scale="UTC"),
