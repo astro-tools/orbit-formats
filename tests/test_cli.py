@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from orbit_formats import convert, write
+from orbit_formats import __version__, convert, write
 from orbit_formats.cli import main
 
 # A full-state GMAT report (two rows -> Ephemeris). It carries no OBJECT_ID and no central
@@ -202,4 +202,4 @@ def test_version_flag_reports_the_version(capsys: pytest.CaptureFixture[str]) ->
     with pytest.raises(SystemExit) as excinfo:
         main(["--version"])
     assert excinfo.value.code == 0
-    assert "0.1.0" in capsys.readouterr().out
+    assert __version__ in capsys.readouterr().out

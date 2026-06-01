@@ -12,8 +12,8 @@ type: software
 authors:
   - given-names: Dimitrije
     family-names: Jankovic
-version: 0.1.0
-date-released: "2026-05-30"
+version: 0.2.0
+date-released: "2026-05-31"
 license: MIT
 repository-code: "https://github.com/astro-tools/orbit-formats"
 url: "https://github.com/astro-tools/orbit-formats"
