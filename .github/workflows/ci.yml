@@ -111,7 +111,7 @@ jobs:
           cache-dependency-glob: uv.lock
       - run: uv sync --all-groups
       - run: uv run --with ccsds-ndm pytest tests/test_ccsds_oem_oracle.py tests/test_ccsds_omm_oracle.py tests/test_ccsds_opm_oracle.py tests/test_ccsds_aem_oracle.py tests/test_ccsds_apm_oracle.py -v
-      - run: uv run --with xmlschema pytest tests/test_ccsds_ocm_oracle.py -v
+      - run: uv run --with xmlschema pytest tests/test_ccsds_ocm_oracle.py tests/test_ccsds_ndm_oracle.py -v
 
   # Validate CITATION.cff against the Citation File Format v1.2.0 schema. cffconvert
   # is installed standalone because it is a CI-only schema check, not part of the dev

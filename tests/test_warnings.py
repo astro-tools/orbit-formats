@@ -12,6 +12,7 @@ import pytest
 
 from orbit_formats import (
     Attitude,
+    Combined,
     Conjunction,
     ConjunctionObject,
     DroppedField,
@@ -34,6 +35,7 @@ from orbit_formats.registry import get_writer
 from orbit_formats.writers.aem import write_aem
 from orbit_formats.writers.apm import write_apm
 from orbit_formats.writers.cdm import write_cdm
+from orbit_formats.writers.ndm import write_ndm
 from orbit_formats.writers.ocm import write_ocm
 from orbit_formats.writers.oem import write_oem
 from orbit_formats.writers.omm import write_omm
@@ -399,6 +401,18 @@ def _incomplete_tdm_tracking() -> Tracking:
     )
 
 
+def _combined_aggregate(message_id: str | None) -> Combined:
+    """A combined NDM of the OEM and CDM goldens; ``message_id`` is the sole wrapper field.
+
+    The members carry full ``source_native`` models, so a KVN write of the aggregate is
+    content-lossless — its only possible loss is the wrapper ``MESSAGE_ID``, which KVN cannot
+    represent, so passing one makes the case lossy and omitting it makes it lossless.
+    """
+    oem = read(GOLDEN_OEM.read_bytes())
+    cdm = read(_CDM_GOLDEN.read_bytes())
+    return Combined(metadata=Metadata(), messages=(oem, cdm), message_id=message_id)
+
+
 def _bare_mean_set(metadata: Metadata) -> MeanElementSet:
     """A bare mean-element set (no source_native) with the given metadata — for the lossy cases."""
     return MeanElementSet(
@@ -449,6 +463,18 @@ _META_CASES = [
         lambda: write_opm(_incomplete_state_vector()),
         loses=True,
         writer_format="ccsds-opm",
+    ),
+    _MetaCase(
+        "ccsds-ndm write: KVN aggregate of two members, no wrapper MESSAGE_ID",
+        lambda: write_ndm(_combined_aggregate(None), ".ndm"),
+        loses=False,
+        writer_format="ccsds-ndm",
+    ),
+    _MetaCase(
+        "ccsds-ndm write: KVN aggregate drops the wrapper MESSAGE_ID",
+        lambda: write_ndm(_combined_aggregate("NDM-MSG-001"), ".ndm"),
+        loses=True,
+        writer_format="ccsds-ndm",
     ),
     _MetaCase(
         "stk-ephemeris write: content-lossless re-serialise",

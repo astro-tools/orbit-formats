@@ -107,15 +107,31 @@ def test_gmat_report_is_detected_by_extension(tmp_path: Path) -> None:
 
 
 def test_extension_breaks_a_signature_tie(tmp_path: Path) -> None:
-    target = tmp_path / "doc.oem"
-    target.write_bytes(OEM_KVN + OMM_KVN)  # both CCSDS_*_VERS keywords present
-    assert detect_format(target) == "ccsds-oem"
+    # A TLE followed by an OPM ties {tle, ccsds-opm} at HIGH (and is not a combined NDM — it
+    # carries a single CCSDS_*_VERS keyword); the .opm extension breaks the tie.
+    target = tmp_path / "doc.opm"
+    target.write_bytes(TLE + OPM_KVN)
+    assert detect_format(target) == "ccsds-opm"
 
 
 def test_ambiguous_content_without_a_tiebreaker_raises() -> None:
     with pytest.raises(AmbiguousFormatError) as excinfo:
-        detect_format(OEM_KVN + OMM_KVN)  # bytes: no extension to break the tie
-    assert set(excinfo.value.candidates) == {"ccsds-oem", "ccsds-omm"}
+        detect_format(TLE + OPM_KVN)  # bytes: no extension to break the tle/opm tie
+    assert set(excinfo.value.candidates) == {"ccsds-opm", "tle"}
+
+
+def test_combined_ndm_outranks_its_members() -> None:
+    # Two or more CCSDS messages in one file is a combined NDM, not an ambiguous tie: the
+    # aggregate signature matches at CONTAINER confidence and wins outright over each member.
+    assert detect_format(OEM_KVN + OMM_KVN) == "ccsds-ndm"
+    ndm_xml = (
+        b'<?xml version="1.0" encoding="UTF-8"?>\n'
+        b"<ndm>\n"
+        b'  <oem id="CCSDS_OEM_VERS" version="2.0"/>\n'
+        b'  <omm id="CCSDS_OMM_VERS" version="2.0"/>\n'
+        b"</ndm>\n"
+    )
+    assert detect_format(ndm_xml) == "ccsds-ndm"
 
 
 def test_a_corrupted_tle_checksum_is_not_detected_as_tle() -> None:
