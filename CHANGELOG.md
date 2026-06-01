@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-31
+
+This release widens the writable format surface and the CCSDS notation coverage:
+orbit-formats now reads and writes the full CCSDS NDM trio (OEM, OMM, OPM) in both KVN and
+XML, writes TLE and STK ephemeris, reads SP3 precise GNSS ephemerides, and rotates Cartesian
+states between real reference frames — extending the same lossless-or-explicitly-warned
+contract to every new path.
+
+### Added
+
+- CCSDS XML notation across the NDM family: an `xsdata`-generated, MIT-licensed binding layer
+  (regenerated from the vendored CCSDS XSDs by `scripts/regen_ccsds_xsd.py`) drives reading and
+  writing OEM, OMM, and OPM in XML alongside the existing KVN notation, selected automatically
+  from the file or by an explicit `format=`.
+- CCSDS OMM reader and writer (KVN + XML), canonicalised as a mean-element set, with
+  bidirectional TLE ↔ OMM conversion — both share the mean-element form, so the conversion is a
+  same-form re-emission rather than a model change.
+- CCSDS OPM reader and writer (KVN + XML), canonicalised as a state vector, preserving
+  covariance and manoeuvres on the fidelity model.
+- TLE / 3LE writer: TLE becomes a writable format, emitting checksum-correct, column-exact
+  lines that round-trip a parsed TLE.
+- STK ephemeris (`.e`) reader and writer (ephemeris form).
+- SP3 reader (SP3-c / SP3-d precise GNSS ephemeris, read-only).
+- Real frame rotation for Cartesian states across TEME / EME2000 / GCRF / ICRF / ITRF (via
+  astropy): a cross-frame conversion now rotates the state rather than being refused, while
+  conversions that still cannot preserve information continue to warn explicitly.
+
+### Changed
+
+- The CCSDS OEM writer is generalised to emit both KVN and XML from the same canonical
+  ephemeris.
+- `xsdata` (MIT) is now a base runtime dependency — the CCSDS XML binding runtime — keeping the
+  base install permissively licensed; the heavier codegen extra stays dev-only.
+
+### Fixed
+
+- The GMAT report format is correctly marked read-only in the format catalog, so the
+  conversion-capability matrix and `detect_format` no longer imply a GMAT report writer.
+
 ## [0.1.0] - 2026-05-30
 
 First release. orbit-formats reads TLE, CCSDS OEM (KVN), and GMAT report files into a
@@ -43,5 +82,6 @@ information, never a silent drop.
   lossy-conversion semantics, and the conversion-capability matrix — and a typed
   (`py.typed`), MIT-licensed package published to PyPI.
 
-[Unreleased]: https://github.com/astro-tools/orbit-formats/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/astro-tools/orbit-formats/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/astro-tools/orbit-formats/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/astro-tools/orbit-formats/releases/tag/v0.1.0
