@@ -286,6 +286,10 @@ FORMATS: tuple[FormatSpec, ...] = (
 
 _BY_ID: dict[str, FormatSpec] = {spec.id: spec for spec in FORMATS}
 _BY_EXTENSION: dict[str, str] = {ext: spec.id for spec in FORMATS for ext in spec.extensions}
+# Accepted synonyms for an explicit ``format=``. The name-annotated three-line TLE is the
+# ``tle`` format in its 3LE notation — not a separate format — so ``format="3le"`` is honoured
+# as a synonym for ``tle`` (on a write, the destination extension still selects the notation).
+_FORMAT_ALIASES: dict[str, str] = {"3le": "tle"}
 # RINEX navigation files also use the version-2 "<2-digit-year><system letter>" suffix,
 # e.g. ``.21n`` (GPS), ``.22g`` (GLONASS), ``.23l`` (Galileo).
 _RINEX_NAV_EXT_RE = re.compile(r"^\.\d\d[ngl]$")
@@ -305,10 +309,12 @@ def normalize_format(format: str) -> str:
     """Validate and canonicalise an explicit format id (lowercased, trimmed).
 
     This is the counterpart to detection: where :func:`orbit_formats.detect.detect_format`
-    works out *what a source is*, this validates a format id a caller already supplied.
-    Raises :class:`~orbit_formats.errors.UnknownFormatError` if it is not a known format.
+    works out *what a source is*, this validates a format id a caller already supplied. A notation
+    synonym (``"3le"`` for ``"tle"``) resolves to its catalog id. Raises
+    :class:`~orbit_formats.errors.UnknownFormatError` if it is not a known format.
     """
     normalized = format.strip().lower()
+    normalized = _FORMAT_ALIASES.get(normalized, normalized)
     if not is_known_format(normalized):
         raise UnknownFormatError(
             f"unknown format {format!r}; known formats: {', '.join(known_format_ids())}"

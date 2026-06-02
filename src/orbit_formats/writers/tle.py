@@ -1,16 +1,23 @@
 """TLE writer — verbatim echo, or element-level reconstruction of the two element lines.
 
-Two paths:
+Three paths, picked from the source's fidelity model:
 
 1. A ``MeanElementSet`` whose ``source_native`` is a
    :class:`~orbit_formats.readers.tle.TleRecord` → the verbatim lines are echoed
    (**byte-identical** for a normalised TLE).
-2. Any other ``MeanElementSet`` (the OMM → TLE direction, where ``source_native`` is an
+2. A ``MeanElementSet`` whose ``source_native`` is a
+   :class:`~orbit_formats.readers.tle.TleCatalog` → every set is re-emitted in file order
+   (**content-lossless** for the whole catalogue).
+3. Any other ``MeanElementSet`` (the OMM → TLE direction, where ``source_native`` is an
    :class:`~orbit_formats.readers.ccsds_omm.OmmFile`, or a bare set) → line 1 and line 2 are
    **reconstructed** from the mean elements and the TLE bookkeeping, with fresh checksums. The
    reconstruction is *element-level* lossless — a re-read reproduces the same mean elements to
    the TLE's representable precision — and warns, through the lossy-conversion framework, for
    each TLE identifier the source could not supply.
+
+The optional 3LE name line is emitted whenever the source carries a name. A ``.3le`` destination
+*requests* the name line: if the source has no name to supply, the writer warns through the
+lossy-conversion framework rather than fabricating one.
 
 TLE is a mean-element format; a Cartesian state or ephemeris cannot become one without orbit
 determination, so a non-``MeanElementSet`` input is rejected.
@@ -26,7 +33,7 @@ from orbit_formats.canonical.base import Canonical
 from orbit_formats.canonical.elements import MeanElementSet, ensure_convertible_to_mean_format
 from orbit_formats.errors import UnsupportedConversionError
 from orbit_formats.readers.ccsds_omm import OmmFile, OmmTleParameters
-from orbit_formats.readers.tle import TleRecord
+from orbit_formats.readers.tle import TleCatalog, TleRecord
 from orbit_formats.registry import register_writer
 from orbit_formats.warnings import DroppedField, LossyConversionWarning, warn_lossy
 
@@ -34,34 +41,46 @@ __all__ = ["write_tle"]
 
 _TLE_LINE_LEN = 69
 
+# The destination extension that requests the name-annotated three-line notation.
+_THREE_LINE_SUFFIX = ".3le"
+
 
 def write_tle(obj: Canonical, suffix: str | None = None) -> bytes:
     """Serialise ``obj`` (a :class:`MeanElementSet`) to TLE / 3LE bytes.
 
-    Echoes the verbatim lines when ``obj`` came from a TLE; otherwise reconstructs them from
-    the mean elements (the OMM → TLE direction). Raises
+    Echoes the verbatim lines when ``obj`` came from a single TLE, re-emits every set when it
+    came from a catalogue, and otherwise reconstructs the lines from the mean elements (the
+    OMM → TLE direction). A ``.3le`` ``suffix`` requests the leading name line; a source with no
+    name to supply warns rather than fabricating one. Raises
     :class:`~orbit_formats.errors.UnsupportedConversionError` if ``obj`` is not a
     ``MeanElementSet`` — a TLE is a mean-element set, and fitting one to a state is orbit
-    determination, not a format conversion. ``suffix`` is unused (TLE has one notation).
+    determination, not a format conversion.
     """
-    del suffix
     if not isinstance(obj, MeanElementSet):
         raise UnsupportedConversionError(type(obj).__name__, "tle", "mean-elements")
     ensure_convertible_to_mean_format(obj, "tle")
+    force_three_line = suffix == _THREE_LINE_SUFFIX
     native = obj.source_native
+    if isinstance(native, TleCatalog):
+        return b"".join(_echo(record, force_three_line) for record in native.records)
     if isinstance(native, TleRecord):
-        return _echo(native)
-    return _reconstruct(obj, native.tle_parameters if isinstance(native, OmmFile) else None)
+        return _echo(native, force_three_line)
+    return _reconstruct(
+        obj, native.tle_parameters if isinstance(native, OmmFile) else None, force_three_line
+    )
 
 
-def _echo(record: TleRecord) -> bytes:
+def _echo(record: TleRecord, force_three_line: bool) -> bytes:
     """Reproduce the source TLE / 3LE lines verbatim (byte-identical for a normalised TLE)."""
-    lines = [record.name] if record.name else []
+    name = _name_line(record.name, force_three_line)
+    lines = [name] if name else []
     lines.extend((record.line1, record.line2))
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
-def _reconstruct(meanset: MeanElementSet, tle: OmmTleParameters | None) -> bytes:
+def _reconstruct(
+    meanset: MeanElementSet, tle: OmmTleParameters | None, force_three_line: bool
+) -> bytes:
     """Build line 1 and line 2 from the mean elements and the TLE bookkeeping, with checksums."""
     catalog = _catalog_number(meanset, tle)
     classification = (tle.classification_type if tle is not None else None) or "U"
@@ -89,13 +108,22 @@ def _reconstruct(meanset: MeanElementSet, tle: OmmTleParameters | None) -> bytes
     )
     line1 = _with_checksum(line1)
     line2 = _with_checksum(line2)
-    name = meanset.metadata.object_name
+    name = _name_line(meanset.metadata.object_name, force_three_line)
     lines = [name] if name else []
     lines.extend((line1, line2))
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
 # --- field formatters ------------------------------------------------------------------
+
+
+def _name_line(name: str | None, force_three_line: bool) -> str | None:
+    """The 3LE name line to emit: the source's name, warning if ``.3le`` requested an absent one."""
+    if force_three_line and name is None:
+        _warn_dropped(
+            "OBJECT_NAME", "the .3le notation requests a name line, but the source has none"
+        )
+    return name
 
 
 def _catalog_number(meanset: MeanElementSet, tle: OmmTleParameters | None) -> int:
