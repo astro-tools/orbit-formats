@@ -16,6 +16,7 @@ from orbit_formats.writers import (  # noqa: F401
     oem,
     omm,
     opm,
+    spk,
     stk_ephemeris,
     tdm,
     tle,

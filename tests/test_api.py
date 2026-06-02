@@ -121,8 +121,11 @@ def test_read_explicit_format_overrides_detection(isolated_registry: None) -> No
 def test_write_without_a_registered_writer_is_unsupported(
     isolated_registry: None, tmp_path: Path
 ) -> None:
-    # spk is a writable format whose writer is not implemented yet, so it hits the
-    # "no writer registered" branch (distinct from a read-only target like sp3 / rinex-nav).
+    # A writable format whose writer is missing hits the "no writer registered" branch
+    # (distinct from a read-only target like sp3 / rinex-nav). Drop spk's writer inside the
+    # isolated registry — the fixture restores it afterwards — to exercise that branch.
+    registry_module.get_writer("spk")  # force plugin load so the removal below sticks
+    registry_module._WRITERS.pop("spk", None)
     with pytest.raises(UnsupportedFormatError, match="no writer is registered"):
         write(_ephemeris(), tmp_path / "out.spk")
 

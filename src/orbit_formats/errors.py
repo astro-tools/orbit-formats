@@ -18,6 +18,7 @@ __all__ = [
     "FormatDetectionError",
     "FrameRotationUnsupportedError",
     "MalformedSourceError",
+    "MissingOptionalDependencyError",
     "OrbitFormatsError",
     "UnknownFormatError",
     "UnsupportedConversionError",
@@ -79,6 +80,25 @@ class UnsupportedConversionError(OrbitFormatsError):
         super().__init__(
             f"no conversion path from a {source_form} to {target_format!r} "
             f"(which expects a {target_form}); only same-form conversion is supported"
+        )
+
+
+class MissingOptionalDependencyError(OrbitFormatsError):
+    """A feature behind an optional extra was used without its dependency installed.
+
+    orbit-formats keeps heavy or niche backends behind optional extras so the base install
+    stays lightweight and fully permissive. Reaching for such a feature — SPK read/write,
+    which needs ``spiceypy`` from the ``[spk]`` extra — without the extra installed raises
+    this, naming the ``pip install`` that resolves it. ``dependency`` is the missing import
+    name and ``extra`` the extra that provides it.
+    """
+
+    def __init__(self, dependency: str, *, extra: str) -> None:
+        self.dependency = dependency
+        self.extra = extra
+        super().__init__(
+            f"{dependency!r} is required for this feature but is not installed; "
+            f"install it with: pip install orbit-formats[{extra}]"
         )
 
 
