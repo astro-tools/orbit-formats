@@ -553,14 +553,24 @@ def _build_covariance(
     )
 
 
-def _to_mean_elements(omm: OmmFile) -> MeanElementSet:
+def _to_mean_elements(
+    omm: OmmFile,
+    *,
+    source_format: str = "ccsds-omm",
+    source_native: FidelityModel | None = None,
+) -> MeanElementSet:
     """Adapt an :class:`OmmFile` into the canonical :class:`MeanElementSet`.
 
     The mean motion comes straight from ``MEAN_MOTION`` for an SGP4/TLE OMM; for a Keplerian
     OMM that states only ``SEMI_MAJOR_AXIS`` it is derived from the semi-major axis and GM
     (the central-body default when GM is absent). The SGP4 drag terms ride along from the
     TLE-parameters block when present. The whole :class:`OmmFile` is retained as
-    ``source_native``.
+    ``source_native`` by default.
+
+    ``source_format`` tags the provenance (``"ccsds-omm"`` for the KVN/XML reader, the JSON /
+    CSV encoding ids for the tabular ones, which reuse this adapter); ``source_native`` lets a
+    caller attach a different fidelity handle than the ``OmmFile`` itself — the tabular reader
+    attaches the :class:`~orbit_formats.readers.omm_tabular.OmmCatalog` the record belongs to.
     """
     md = omm.metadata
     metadata = Metadata(
@@ -570,12 +580,12 @@ def _to_mean_elements(omm: OmmFile) -> MeanElementSet:
         reference_frame=md.ref_frame,
         central_body=md.center_name,
         time_scale=_canonical_time_scale(md.time_system),
-        provenance=Provenance(source_format="ccsds-omm", creation_date=omm.creation_date),
+        provenance=Provenance(source_format=source_format, creation_date=omm.creation_date),
     )
     tle = omm.tle_parameters
     return MeanElementSet(
         metadata=metadata,
-        source_native=omm,
+        source_native=omm if source_native is None else source_native,
         epoch=omm.mean_elements.epoch,
         mean_motion=_mean_motion(omm.mean_elements),
         eccentricity=omm.mean_elements.eccentricity,

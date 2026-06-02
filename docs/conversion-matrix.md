@@ -13,7 +13,7 @@ than as a bespoke format pair:
 
 | Form | Category type | Formats |
 |------|---------------|---------|
-| mean-elements | `MeanElementSet` | `tle`, `ccsds-omm`, `rinex-nav` (read-only — GNSS broadcast: GPS / Galileo / BeiDou / QZSS / NavIC) |
+| mean-elements | `MeanElementSet` | `tle`, `ccsds-omm`, `omm-json` / `omm-csv` (Celestrak / Space-Track flat OMM), `rinex-nav` (read-only — GNSS broadcast: GPS / Galileo / BeiDou / QZSS / NavIC) |
 | state | `StateVector` | `ccsds-opm`, `gmat-report` (1 row), `rinex-nav` (read-only — GLONASS / SBAS) |
 | ephemeris | `Ephemeris` | `ccsds-oem`, `stk-ephemeris`, `ccsds-ocm`, `spk` (read/write); `sp3`, `gmat-report` (≥2 rows) (read-only) |
 | attitude | `Attitude` | `ccsds-aem` (history), `ccsds-apm` (single attitude), `stk-attitude` (STK `.a`) |
@@ -23,7 +23,8 @@ than as a bespoke format pair:
 
 A conversion whose source is already in the target's preferred form is a **same-form
 pass-through**: the canonical object is handed straight to the target's writer. Two formats that
-share a form therefore convert into each other — TLE ↔ OMM (mean-elements), OEM ↔ STK ↔ OCM ↔ SPK
+share a form therefore convert into each other — TLE ↔ OMM ↔ OMM-JSON ↔ OMM-CSV (mean-elements),
+OEM ↔ STK ↔ OCM ↔ SPK
 (ephemeris), AEM ↔ APM ↔ STK-attitude (attitude) — carrying whatever the canonical object holds; the only cost is
 whatever the *target writer* cannot express, which it names in a warning. A same-**format** write
 (OEM → OEM) additionally recovers full fidelity from `source_native`.
@@ -61,24 +62,26 @@ canonical field silently — every ⚠️ names what it dropped.
 <!-- capability-matrix: this table is asserted against orbit_formats.conversion_capability by
      tests/test_conversion_matrix.py::test_doc_matrix_matches_capabilities — keep it in sync. -->
 
-| Source ╲ Target | `tle` | `ccsds-omm` | `ccsds-opm` | `ccsds-oem` | `stk-ephemeris` | `ccsds-ocm` | `spk` | `ccsds-aem` | `ccsds-apm` | `stk-attitude` | `ccsds-cdm` | `ccsds-tdm` | `ccsds-ndm` |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `tle` | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-omm` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `rinex-nav` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-opm` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-oem` | ❌ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `stk-ephemeris` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `sp3` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `gmat-report` | ❌ | ❌ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-ocm` | ❌ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `spk` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-aem` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ |
-| `ccsds-apm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ |
-| `stk-attitude` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ❌ | ❌ | ❌ |
-| `ccsds-cdm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| `ccsds-tdm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
-| `ccsds-ndm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Source ╲ Target | `tle` | `ccsds-omm` | `ccsds-opm` | `ccsds-oem` | `stk-ephemeris` | `ccsds-ocm` | `spk` | `ccsds-aem` | `ccsds-apm` | `stk-attitude` | `ccsds-cdm` | `ccsds-tdm` | `ccsds-ndm` | `omm-json` | `omm-csv` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `tle` | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ⚠️ |
+| `ccsds-omm` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ⚠️ |
+| `rinex-nav` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-opm` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-oem` | ❌ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `stk-ephemeris` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `sp3` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `gmat-report` | ❌ | ❌ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-ocm` | ❌ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `spk` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-aem` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-apm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `stk-attitude` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-cdm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-tdm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `ccsds-ndm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `omm-json` | ⚠️ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| `omm-csv` | ⚠️ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
 
 `rinex-nav` and `gmat-report` are read into the form their content dictates, and the row above
 shows that form's row: `rinex-nav` reads a GNSS *broadcast* mean set (the row shown — refused into
@@ -89,13 +92,19 @@ converts like the `ccsds-opm` row (into `ccsds-opm` / `ccsds-oem` / `stk-ephemer
 
 ## What each conversion carries
 
-### Mean-element targets — `tle`, `ccsds-omm`
+### Mean-element targets — `tle`, `ccsds-omm`, `omm-json`, `omm-csv`
 
-TLE ↔ OMM share the mean-element form. The mean elements and the NORAD identifiers cross over; a
-bare two-line TLE has no `OBJECT_NAME`, so writing it as an OMM (which requires one) warns and
-writes a placeholder. A `rinex-nav` broadcast set is the same form but a different theory and an
-Earth-fixed frame, so it is refused into both — `IncompatibleMeanElementTheoryError` (a subclass of
-`UnsupportedConversionError`). A state or ephemeris to a mean set is an orbit fit, out of scope.
+TLE, the CCSDS OMM, and its Celestrak / Space-Track flat encodings (`omm-json`, `omm-csv`) all
+share the mean-element form. The mean elements and the NORAD identifiers cross over; a bare
+two-line TLE has no `OBJECT_NAME`, so writing it as an OMM (which requires one) warns and writes a
+placeholder. `omm-json` and `omm-csv` are alternative *encodings* of the OMM, so they round-trip
+into the CCSDS OMM and into each other carrying the same canonical set; the flat columns hold only
+the operational fields, so writing an OMM that carries a header, comments, covariance, spacecraft
+parameters, user-defined keys, or a non-TEME/UTC/SGP4 set warns, naming each field the encoding
+cannot hold. A `rinex-nav` broadcast set is the same form but a different theory and an
+Earth-fixed frame, so it is refused into all of them — `IncompatibleMeanElementTheoryError` (a
+subclass of `UnsupportedConversionError`). A state or ephemeris to a mean set is an orbit fit, out
+of scope.
 
 ### State target — `ccsds-opm`
 

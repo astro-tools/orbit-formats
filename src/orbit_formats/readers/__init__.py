@@ -18,6 +18,7 @@ from orbit_formats.readers import (  # noqa: F401
     ccsds_opm,
     ccsds_tdm,
     gmat_report,
+    omm_tabular,
     rinex_nav,
     sp3,
     spk,

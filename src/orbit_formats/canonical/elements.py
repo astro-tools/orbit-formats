@@ -27,7 +27,9 @@ BROADCAST_MEAN_ELEMENT_THEORY = "GNSS broadcast"
 
 # The writable mean-element formats, which are all SGP4 / TEME mean-element formats. A
 # broadcast mean set cannot be written as one of these without a propagate-and-refit.
-_SGP4_MEAN_ELEMENT_FORMATS = frozenset({"tle", "ccsds-omm"})
+# ``omm-json`` / ``omm-csv`` are the Celestrak / Space-Track flat encodings of the OMM —
+# alternative serialisations of the same SGP4 / TEME mean set, so they gate identically.
+_SGP4_MEAN_ELEMENT_FORMATS = frozenset({"tle", "ccsds-omm", "omm-json", "omm-csv"})
 
 # Column names for the one-row mean-element projection. This is a different canonical
 # category from the Cartesian state series, so it deliberately does not share the

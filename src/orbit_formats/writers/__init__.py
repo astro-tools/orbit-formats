@@ -15,6 +15,7 @@ from orbit_formats.writers import (  # noqa: F401
     ocm,
     oem,
     omm,
+    omm_tabular,
     opm,
     spk,
     stk_attitude,

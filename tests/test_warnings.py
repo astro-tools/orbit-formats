@@ -39,6 +39,7 @@ from orbit_formats.writers.ndm import write_ndm
 from orbit_formats.writers.ocm import write_ocm
 from orbit_formats.writers.oem import write_oem
 from orbit_formats.writers.omm import write_omm
+from orbit_formats.writers.omm_tabular import write_omm_csv, write_omm_json
 from orbit_formats.writers.opm import write_opm
 from orbit_formats.writers.spk import write_spk
 from orbit_formats.writers.stk_attitude import write_stk_attitude
@@ -482,6 +483,30 @@ _META_CASES = [
         lambda: write_omm(_bare_mean_set(Metadata())),
         loses=True,
         writer_format="ccsds-omm",
+    ),
+    _MetaCase(
+        "omm-json write: TLE -> OMM JSON, every identifier present",
+        lambda: write_omm_json(_tle_mean_set()),
+        loses=False,
+        writer_format="omm-json",
+    ),
+    _MetaCase(
+        "omm-json write: synthesised, missing required metadata",
+        lambda: write_omm_json(_bare_mean_set(Metadata())),
+        loses=True,
+        writer_format="omm-json",
+    ),
+    _MetaCase(
+        "omm-csv write: TLE -> OMM CSV, every identifier present",
+        lambda: write_omm_csv(_tle_mean_set()),
+        loses=False,
+        writer_format="omm-csv",
+    ),
+    _MetaCase(
+        "omm-csv write: synthesised, missing required metadata",
+        lambda: write_omm_csv(_bare_mean_set(Metadata())),
+        loses=True,
+        writer_format="omm-csv",
     ),
     _MetaCase(
         "ccsds-opm write: content-lossless re-serialise",
