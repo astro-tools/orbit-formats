@@ -110,7 +110,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
       - run: uv sync --all-groups
-      - run: uv run --with ccsds-ndm pytest tests/test_ccsds_oem_oracle.py tests/test_ccsds_omm_oracle.py tests/test_ccsds_opm_oracle.py tests/test_ccsds_aem_oracle.py tests/test_ccsds_apm_oracle.py -v
+      - run: uv run --with ccsds-ndm pytest tests/test_ccsds_oem_oracle.py tests/test_ccsds_omm_oracle.py tests/test_ccsds_opm_oracle.py tests/test_ccsds_aem_oracle.py tests/test_ccsds_apm_oracle.py tests/test_ccsds_cdm_oracle.py tests/test_ccsds_tdm_oracle.py -v
       - run: uv run --with xmlschema pytest tests/test_ccsds_ocm_oracle.py tests/test_ccsds_ndm_oracle.py -v
 
   # Cross-validate the conversion layer (elements / frames / time) against Orekit, an
