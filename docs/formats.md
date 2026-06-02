@@ -13,11 +13,17 @@ fidelity model rather than dropped.
 | CCSDS OEM (KVN + XML) | `ccsds-oem` | ✓ | ✓ | ephemeris |
 | CCSDS OMM (KVN + XML) | `ccsds-omm` | ✓ | ✓ | mean-element set |
 | CCSDS OPM (KVN + XML) | `ccsds-opm` | ✓ | ✓ | state vector |
+| CCSDS OCM (KVN + XML) | `ccsds-ocm` | ✓ | ✓ | ephemeris |
+| CCSDS AEM (KVN + XML) | `ccsds-aem` | ✓ | ✓ | attitude |
+| CCSDS APM (KVN + XML) | `ccsds-apm` | ✓ | ✓ | attitude |
+| CCSDS CDM (KVN + XML) | `ccsds-cdm` | ✓ | ✓ | conjunction |
+| CCSDS TDM (KVN + XML) | `ccsds-tdm` | ✓ | ✓ | tracking |
+| CCSDS combined NDM (KVN + XML) | `ccsds-ndm` | ✓ | ✓ | aggregate of NDM messages |
 | GMAT report | `gmat-report` | ✓ | — | ephemeris / state |
 | STK ephemeris | `stk-ephemeris` | ✓ | ✓ | ephemeris |
 | SP3 (SP3-c / SP3-d) | `sp3` | ✓ | — | ephemeris |
 | RINEX navigation (3.x) | `rinex-nav` | ✓ | — | mean-element set / state |
-| CCSDS combined NDM (KVN + XML) | `ccsds-ndm` | ✓ | ✓ | aggregate of NDM messages |
+| SPK (`[spk]` extra) | `spk` | ✓ | ✓ | ephemeris |
 
 TLE and OMM share the **mean-element set** canonical form, so they convert into each other:
 read a TLE and write an OMM, or read an OMM and write a TLE. A RINEX-navigation mean set is
@@ -25,13 +31,19 @@ read a TLE and write an OMM, or read an OMM and write a TLE. A RINEX-navigation 
 elements, so it does **not** convert to a TLE or OMM — see [RINEX navigation](#rinex-navigation-3x-rinex-nav)
 below.
 
-**CCSDS notation — KVN and XML.** The OEM, OMM, and OPM each read and write in both CCSDS
-notations under a single format id. The two notations are held at **parity**: KVN and XML parse
-into the same fidelity model, so a message carries identical content whichever it arrived in,
-and a KVN → XML → KVN round trip reproduces it. On write, the destination extension selects the
-notation (`.oem` / `.omm` / `.opm` → KVN, `.xml` → XML); since `.xml` names no single NDM
-message, writing one needs an explicit `format=` (e.g. `write(eph, "sat.xml",
-format="ccsds-oem")`).
+Beyond the orbit-state forms, three CCSDS messages introduce **non-orbit** canonical
+categories: AEM and APM read into an **attitude** (`Attitude`), the CDM into a **conjunction**
+(`Conjunction`), and the TDM into a **tracking** set (`Tracking`). Each is its own form — what
+they hold is described in the [canonical representation](canonical-representation.md), and what
+converts to what is in the [conversion matrix](conversion-matrix.md).
+
+**CCSDS notation — KVN and XML.** Every CCSDS message — OEM, OMM, OPM, OCM, AEM, APM, CDM, TDM,
+and the combined NDM — reads and writes in both CCSDS notations under a single format id. The
+two notations are held at **parity**: KVN and XML parse into the same fidelity model, so a
+message carries identical content whichever it arrived in, and a KVN → XML → KVN round trip
+reproduces it. On write, the destination extension selects the notation (the message's own
+extension → KVN, `.xml` → XML); since `.xml` names no single NDM message, writing one needs an
+explicit `format=` (e.g. `write(eph, "sat.xml", format="ccsds-oem")`).
 
 ## TLE / 3LE — `tle`
 
@@ -131,6 +143,30 @@ spacecraft parameters, a covariance, and any number of planned maneuvers.
   notation (`.opm` → KVN, `.xml` → XML).
 - **Detection:** the `CCSDS_OPM_VERS =` KVN header, or an `<opm>` XML root carrying the same
   marker, or the `.opm` extension.
+
+## CCSDS OCM (KVN + XML) — `ccsds-ocm`
+
+An Orbit Comprehensive Message reads into an `Ephemeris`. Both notations — KVN and XML — are
+read and written under one `ccsds-ocm` id and one fidelity model. The OCM is the richest NDM
+orbit message: alongside a state-vector trajectory it can carry covariance histories, planned
+manoeuvres, physical properties, perturbation and orbit-determination metadata, and a
+user-defined block. orbit-formats canonicalises the **Cartesian trajectory** into the
+ephemeris; everything else is preserved on `source_native`.
+
+- **Expresses:** the Cartesian state-vector time series from the OCM's trajectory block, tagged
+  with the reference frame, central body, and time system from the metadata.
+- **Preserved on `source_native`, not in the canonical form:** any non-Cartesian trajectory
+  block, the covariance and orbit-determination histories, the manoeuvre specifications, the
+  physical-properties and perturbations blocks, the user-defined block, comments, and the full
+  per-block metadata.
+- **Writing** mirrors the OEM writer: byte-identical (with `retain_source=True`),
+  content-lossless, or — for a synthesised or cross-format ephemeris with no OCM `source_native`
+  — a fresh OCM with a single Cartesian trajectory block built from the canonical fields,
+  warning for each OCM-required field (object name, time system, the trajectory's start / stop
+  time and reference frame) the canonical form cannot supply. KVN dimensioned values carry their
+  units; the destination extension selects the notation (`.ocm` → KVN, `.xml` → XML).
+- **Detection:** the `CCSDS_OCM_VERS =` KVN header, or an `<ocm>` XML root carrying the same
+  marker, or the `.ocm` extension.
 
 ## GMAT report — `gmat-report`
 
@@ -255,6 +291,145 @@ polynomial terms) followed by the constellation's broadcast-orbit lines. RINEX n
   `.NNn` (version-2 year-and-system) extension. The reader parses RINEX **3.x**; RINEX 2.x or
   4.x, a missing or malformed header, an unknown constellation, a truncated record, or a
   non-numeric field raise `MalformedSourceError`.
+
+## SPK (`[spk]` extra) — `spk`
+
+A SPICE SPK binary kernel (`.bsp` / `.spk`) reads into an `Ephemeris`. SPK support pulls in
+`spiceypy` and is kept behind the optional `[spk]` extra (`pip install orbit-formats[spk]`) so
+the heavy SPICE kernel path stays out of the base install; without it, reading or writing SPK
+raises `MissingOptionalDependencyError` naming the extra.
+
+orbit-formats parses the **sampled-state segment types — type 9 (Lagrange) and type 13
+(Hermite)** — whose stored data is exactly the state nodes the segment was built from. The nodes
+are read straight from the DAF (no interpolation, no kernel pool, no `furnsh`), so reading
+recovers them losslessly.
+
+- **Expresses:** a Cartesian state-vector time series per segment, tagged **TDB** (SPK ephemeris
+  time is TDB by definition), with the segment's SPICE frame name (`J2000`, …) as the reference
+  frame and the centre body's SPICE name as the central body — a NAIF id rendered as a string
+  when SPICE has no name for it. Positions and velocities are km and km·s⁻¹.
+- **Multi-segment → a per-segment ephemeris set.** `read` returns the **first** segment as the
+  canonical `Ephemeris`; the whole set is `result.source_native.segment_ephemerides()` — every
+  segment as its own `Ephemeris`, each tagged with its frame, centre, and TDB. No segment is
+  dropped.
+- **Preserved on `source_native`, not in the canonical form:** each segment's descriptor — the
+  NAIF body / centre / frame ids, the segment type, the interpolation degree, and the DAF array
+  name — and every segment's full node set.
+- **Writing** picks one of three paths automatically, mirroring the OEM writer: a byte-identical
+  re-emit (with `retain_source=True`), a content-lossless re-serialisation of every stored
+  segment via `spiceypy`, or — for a synthesised or cross-format ephemeris with no SPK
+  `source_native` — a fresh single type-9 segment built from the canonical fields, warning for
+  each SPK-required field it cannot resolve: the target / centre NAIF ids (placeholders `-999`
+  and Earth `399`), a SPICE-representable frame (`J2000`; `EME2000` / `ICRF` / `GCRF` alias to
+  it), and the time scale. **A single state cannot be written as SPK** — a segment is an
+  interpolatable trajectory of at least two states — so a one-sample ephemeris raises
+  `UnsupportedConversionError`.
+- **Detection:** the `DAF/SPK` or `NAIF/DAF` binary magic, or the `.bsp` / `.spk` extension. A
+  file that is not a readable DAF/SPK, or a segment whose type is not 9 or 13, raises
+  `MalformedSourceError`.
+
+## CCSDS AEM (KVN + XML) — `ccsds-aem`
+
+An Attitude Ephemeris Message reads into an `Attitude` — a time series of attitude records. Both
+notations — KVN and XML — are read and written under one `ccsds-aem` id and one fidelity model.
+
+- **Expresses:** an attitude history — the `attitude_type` (quaternion, Euler angle, or spin),
+  one record per epoch, and the two reference frames the rotation maps between (`frame_a` →
+  `frame_b`), plus the rotation sequence for the Euler representation. Quaternions are stored
+  **scalar-last** (`Q1 Q2 Q3 QC`) regardless of the source's `QUATERNION_TYPE FIRST` / `LAST`.
+- **Multi-segment files** are concatenated into one history; the segments must agree on the
+  frames, time system, and attitude type, or the reader raises `MalformedSourceError` rather
+  than splicing mismatched segments.
+- **Preserved on `source_native`, not in the canonical form:** the per-segment META the
+  canonical form has no slot for — the `ATTITUDE_DIR` and `QUATERNION_TYPE` notation tags, the
+  interpolation block (method and degree), the usable time windows — the comments, and the full
+  header.
+- **Writing** mirrors the OEM writer: byte-identical (with `retain_source=True`),
+  content-lossless, or a synthesised AEM built from the canonical attitude, warning for each
+  AEM-required META field (object name and id, the two frames, time system) the canonical form
+  cannot supply; synthesised quaternions are written scalar-last. The destination extension
+  selects the notation (`.aem` → KVN, `.xml` → XML).
+- **Detection:** the `CCSDS_AEM_VERS =` KVN header, or an `<aem>` XML root carrying the same
+  marker, or the `.aem` extension.
+
+## CCSDS APM (KVN + XML) — `ccsds-apm`
+
+An Attitude Parameter Message reads into an `Attitude` holding a **single** attitude record at
+one epoch. Both notations — KVN and XML — are read and written under one `ccsds-apm` id and one
+fidelity model. AEM and APM share the **attitude** canonical form, so they convert into each
+other: an APM embeds as a one-record AEM (lossless), and an AEM history collapses to its first
+record for an APM (warning, naming the dropped records) — see
+[Conversion matrix](conversion-matrix.md).
+
+- **Expresses:** a single quaternion attitude — the quaternion (stored scalar-last) and the two
+  reference frames it maps between (`frame_a` → `frame_b`).
+- **Preserved on `source_native`, not in the canonical form:** the quaternion-rate block
+  (`Q1_DOT …`), the `Q_DIR` direction tag, the message id, comments, and the full header.
+- **Writing** mirrors the OEM writer: byte-identical (with `retain_source=True`),
+  content-lossless, or a synthesised single-quaternion APM, warning for each APM-required field
+  (object name and id, the frames, time system) the canonical form cannot supply. A multi-record
+  attitude history written to APM keeps the **first** record and warns. A non-quaternion
+  attitude (Euler, spin) cannot be written as an APM — representing it as a quaternion would be a
+  representation conversion, out of scope — and raises `UnsupportedConversionError`.
+- **Detection:** the `CCSDS_APM_VERS =` KVN header, or an `<apm>` XML root carrying the same
+  marker, or the `.apm` extension.
+
+## CCSDS CDM (KVN + XML) — `ccsds-cdm`
+
+A Conjunction Data Message reads into a `Conjunction` — a close-approach record between exactly
+two objects. Both notations — KVN and XML — are read and written under one `ccsds-cdm` id and
+one fidelity model.
+
+- **Expresses:** the time of closest approach (`tca`), the miss distance, and — when the CDM
+  carries the relative-state block — the relative position, velocity, and speed in the RTN
+  frame; and, per object (`OBJECT1` / `OBJECT2`), its designator, reference frame, the Cartesian
+  state at TCA (km, km·s⁻¹), and the 6×6 RTN position/velocity covariance. The metadata spine
+  tags the primary object and the originator; the time scale is **UTC** — the CDM has no
+  `TIME_SYSTEM` keyword and is UTC by convention.
+- **Exactly two objects.** A CDM that does not relate two objects raises `MalformedSourceError`.
+- **Preserved on `source_native`, not in the canonical form:** the screen-period and
+  screen-volume block, the collision-probability block, the per-object orbit-determination and
+  additional parameters (area, mass, ballistic and SRP ratios), the extended covariance
+  cross-terms (drag / SRP / thrust), and comments.
+- **KVN shape.** Unlike the other CCSDS messages, the CDM KVN has **no** `META_START` /
+  `META_STOP` markers — its sections are delimited by keyword membership and the
+  `OBJECT = OBJECT1` / `OBJECT2` markers — and dimensioned values carry bracketed units (e.g.
+  `MISS_DISTANCE = 715.0 [m]`).
+- **Writing** mirrors the OEM writer: byte-identical (with `retain_source=True`),
+  content-lossless, or a synthesised CDM, warning for each required object or relative-state
+  field the canonical form cannot supply. The destination extension selects the notation
+  (`.cdm` → KVN, `.xml` → XML).
+- **Not an orbit.** A conjunction has no orbit-state canonical form, so it round-trips to itself
+  and nothing else — `convert` to any other format raises (see
+  [Conversion matrix](conversion-matrix.md)).
+- **Detection:** the `CCSDS_CDM_VERS =` KVN header, or a `<cdm>` XML root carrying the same
+  marker, or the `.cdm` extension.
+
+## CCSDS TDM (KVN + XML) — `ccsds-tdm`
+
+A Tracking Data Message reads into a `Tracking` — the tracking participants and a flat sequence
+of timed observations. Both notations — KVN and XML — are read and written under one `ccsds-tdm`
+id and one fidelity model.
+
+- **Expresses:** the ordered tracking `participants` (`PARTICIPANT_1` … `PARTICIPANT_5` — the
+  ground stations and the tracked spacecraft) and the full sequence of
+  `(observation_type, epoch, value)` triples, in file order, concatenated across every segment.
+  The metadata spine carries the originator and the time scale.
+- **Preserved on `source_native`, not in the canonical form:** the full per-segment META — the
+  mode, signal path, frequency bands, integration interval, range units, delays, corrections,
+  ephemeris names, and the rest — the per-segment comments, and the segment structure. The units
+  a value is read in (range units, the angle type) live on the segment metadata, not on each
+  observation.
+- **Closed vocabularies.** The observation and metadata keywords are fixed CCSDS sets; an
+  unrecognised keyword raises `MalformedSourceError` rather than being silently kept.
+- **Writing** mirrors the OEM writer: byte-identical (with `retain_source=True`),
+  content-lossless, or a synthesised TDM, warning for each required META field (time system,
+  `PARTICIPANT_1`) the canonical form cannot supply. The destination extension selects the
+  notation (`.tdm` → KVN, `.xml` → XML).
+- **Not a state.** A tracking-data set has no orbit-state canonical form, so it round-trips to
+  itself and nothing else (see [Conversion matrix](conversion-matrix.md)).
+- **Detection:** the `CCSDS_TDM_VERS =` KVN header, or a `<tdm>` XML root carrying the same
+  marker, or the `.tdm` extension.
 
 ## CCSDS combined NDM (KVN + XML) — `ccsds-ndm`
 

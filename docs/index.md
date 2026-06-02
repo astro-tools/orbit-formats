@@ -29,12 +29,14 @@ depend on as the single source of format truth.
 
 ## What it reads and writes
 
-orbit-formats reads TLE / 3LE, CCSDS OEM / OMM / OPM (each in KVN and XML), STK ephemeris,
-SP3, and GMAT report files; writes TLE, CCSDS OEM / OMM / OPM (the NDM messages in either
-notation), and STK ephemeris; converts between formats that share a canonical form — including
-the lossless TLE ↔ OMM pairing — and rotates Cartesian states across TEME / EME2000 / GCRF /
-ICRF / ITRF on request. See [Formats](formats.md) for what each can and cannot express, and the
-[conversion-capability matrix](conversion-matrix.md) for what converts to what.
+orbit-formats reads TLE / 3LE; the full CCSDS NDM family — OEM, OMM, OPM, OCM, AEM, APM, CDM,
+TDM, and the combined NDM, each in KVN and XML; STK ephemeris; SP3; GMAT report; SPICE SPK
+(behind the `[spk]` extra); and RINEX navigation. It writes every one of those except the
+read-only SP3, GMAT report, and RINEX navigation; converts between formats that share a
+canonical form — including the lossless TLE ↔ OMM pairing; and rotates Cartesian states across
+TEME / EME2000 / GCRF / ICRF / ITRF on request. See [Formats](formats.md) for what each can and
+cannot express, and the [conversion-capability matrix](conversion-matrix.md) for what converts
+to what.
 
 ## Installation
 
@@ -53,6 +55,8 @@ pip install orbit-formats
   lossy-warning contract, and the frame / time-transform scope.
 - **[Conversion-capability matrix](conversion-matrix.md)** — what converts to what, and at
   what cost.
+- **[Validation](validation.md)** — the external oracles (Orekit, SPICE, the CCSDS references)
+  and what they guarantee.
 - **[Command-line interface](cli.md)** and **[API reference](api.md)**.
 
 See the
