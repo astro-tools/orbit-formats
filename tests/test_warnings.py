@@ -41,6 +41,7 @@ from orbit_formats.writers.oem import write_oem
 from orbit_formats.writers.omm import write_omm
 from orbit_formats.writers.opm import write_opm
 from orbit_formats.writers.spk import write_spk
+from orbit_formats.writers.stk_attitude import write_stk_attitude
 from orbit_formats.writers.stk_ephemeris import write_stk_ephemeris
 from orbit_formats.writers.tdm import write_tdm
 from orbit_formats.writers.tle import write_tle
@@ -149,6 +150,7 @@ def test_each_warning_is_catchable_by_its_own_type(cls: type[LossyConversionWarn
 GOLDEN_OEM = Path(__file__).parent / "data" / "oem" / "golden_roundtrip.oem"
 GOLDEN_OPM = Path(__file__).parent / "data" / "opm" / "golden_opm.opm"
 GOLDEN_STK = Path(__file__).parent / "data" / "stk" / "golden_roundtrip.e"
+GOLDEN_STK_ATTITUDE = Path(__file__).parent / "data" / "stk" / "golden_roundtrip.a"
 GOLDEN_SPK = Path(__file__).parent / "data" / "spk" / "golden.bsp"
 
 # A single-row GMAT report with a complete state (no NaN-fill) and a position-only one
@@ -332,6 +334,13 @@ QC = 0.927362
 def _apm_attitude() -> Attitude:
     """An attitude read from an APM (carries an ApmFile source_native) — write is lossless."""
     att = read(_APM_KVN)
+    assert isinstance(att, Attitude)
+    return att
+
+
+def _stk_attitude() -> Attitude:
+    """An attitude read from an STK .a (carries an StkAttitudeFile source_native) — lossless."""
+    att = read(GOLDEN_STK_ATTITUDE)
     assert isinstance(att, Attitude)
     return att
 
@@ -560,6 +569,18 @@ _META_CASES = [
         lambda: write_aem(_incomplete_attitude()),
         loses=True,
         writer_format="ccsds-aem",
+    ),
+    _MetaCase(
+        "stk-attitude write: content-lossless re-serialise",
+        lambda: write_stk_attitude(_stk_attitude()),
+        loses=False,
+        writer_format="stk-attitude",
+    ),
+    _MetaCase(
+        "stk-attitude write: synthesised, missing required meta",
+        lambda: write_stk_attitude(_incomplete_attitude()),
+        loses=True,
+        writer_format="stk-attitude",
     ),
     _MetaCase(
         "ccsds-apm write: content-lossless re-serialise",

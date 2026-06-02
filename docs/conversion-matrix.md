@@ -16,7 +16,7 @@ than as a bespoke format pair:
 | mean-elements | `MeanElementSet` | `tle`, `ccsds-omm`, `rinex-nav` (read-only — GNSS broadcast: GPS / Galileo / BeiDou / QZSS / NavIC) |
 | state | `StateVector` | `ccsds-opm`, `gmat-report` (1 row), `rinex-nav` (read-only — GLONASS / SBAS) |
 | ephemeris | `Ephemeris` | `ccsds-oem`, `stk-ephemeris`, `ccsds-ocm`, `spk` (read/write); `sp3`, `gmat-report` (≥2 rows) (read-only) |
-| attitude | `Attitude` | `ccsds-aem` (history), `ccsds-apm` (single attitude) |
+| attitude | `Attitude` | `ccsds-aem` (history), `ccsds-apm` (single attitude), `stk-attitude` (STK `.a`) |
 | conjunction | `Conjunction` | `ccsds-cdm` |
 | tracking | `Tracking` | `ccsds-tdm` |
 | ndm (aggregate) | `Combined` | `ccsds-ndm` |
@@ -24,7 +24,7 @@ than as a bespoke format pair:
 A conversion whose source is already in the target's preferred form is a **same-form
 pass-through**: the canonical object is handed straight to the target's writer. Two formats that
 share a form therefore convert into each other — TLE ↔ OMM (mean-elements), OEM ↔ STK ↔ OCM ↔ SPK
-(ephemeris), AEM ↔ APM (attitude) — carrying whatever the canonical object holds; the only cost is
+(ephemeris), AEM ↔ APM ↔ STK-attitude (attitude) — carrying whatever the canonical object holds; the only cost is
 whatever the *target writer* cannot express, which it names in a warning. A same-**format** write
 (OEM → OEM) additionally recovers full fidelity from `source_native`.
 
@@ -61,23 +61,24 @@ canonical field silently — every ⚠️ names what it dropped.
 <!-- capability-matrix: this table is asserted against orbit_formats.conversion_capability by
      tests/test_conversion_matrix.py::test_doc_matrix_matches_capabilities — keep it in sync. -->
 
-| Source ╲ Target | `tle` | `ccsds-omm` | `ccsds-opm` | `ccsds-oem` | `stk-ephemeris` | `ccsds-ocm` | `spk` | `ccsds-aem` | `ccsds-apm` | `ccsds-cdm` | `ccsds-tdm` | `ccsds-ndm` |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `tle` | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-omm` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `rinex-nav` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-opm` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-oem` | ❌ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `stk-ephemeris` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `sp3` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `gmat-report` | ❌ | ❌ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-ocm` | ❌ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `spk` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-aem` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ⚠️ | ❌ | ❌ | ❌ |
-| `ccsds-apm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `ccsds-cdm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| `ccsds-tdm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
-| `ccsds-ndm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Source ╲ Target | `tle` | `ccsds-omm` | `ccsds-opm` | `ccsds-oem` | `stk-ephemeris` | `ccsds-ocm` | `spk` | `ccsds-aem` | `ccsds-apm` | `stk-attitude` | `ccsds-cdm` | `ccsds-tdm` | `ccsds-ndm` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `tle` | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-omm` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `rinex-nav` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-opm` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-oem` | ❌ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `stk-ephemeris` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `sp3` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `gmat-report` | ❌ | ❌ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-ocm` | ❌ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `spk` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-aem` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ |
+| `ccsds-apm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ |
+| `stk-attitude` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ❌ | ❌ | ❌ |
+| `ccsds-cdm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `ccsds-tdm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| `ccsds-ndm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
 `rinex-nav` and `gmat-report` are read into the form their content dictates, and the row above
 shows that form's row: `rinex-nav` reads a GNSS *broadcast* mean set (the row shown — refused into
@@ -126,13 +127,19 @@ A single state (`ccsds-opm`, a one-row report) embeds as a length-1 ephemeris, s
 `ccsds-oem` / `stk-ephemeris` / `ccsds-ocm` losslessly (those accept a one-sample ephemeris). A
 mean-element set to an ephemeris needs a propagation, out of scope.
 
-### Attitude targets — `ccsds-aem`, `ccsds-apm`
+### Attitude targets — `ccsds-aem`, `ccsds-apm`, `stk-attitude`
 
-AEM (a quaternion history) and APM (a single quaternion attitude) share the attitude form. APM →
-AEM writes a one-record history (lossless). AEM → APM keeps the **first** record and warns, naming
-the dropped records — an APM holds one attitude. A non-quaternion attitude (Euler, spin) cannot be
-written as an APM (representing it as a quaternion would be a representation conversion, out of
-scope) and raises.
+AEM (a quaternion history), APM (a single quaternion attitude), and STK attitude (a `.a`
+quaternion or Euler history) share the attitude form. APM → AEM writes a one-record history
+(lossless). AEM → APM keeps the **first** record and warns, naming the dropped records — an APM
+holds one attitude. A non-quaternion attitude (Euler, spin) cannot be written as an APM
+(representing it as a quaternion would be a representation conversion, out of scope) and raises.
+
+STK `.a` carries quaternions and Euler angles but, unlike the CCSDS pair, names only its
+reference axes (`CoordinateAxes`): the object name / id and the body-frame name an AEM / APM
+carries have no slot, so AEM / APM → STK attitude warns for what it drops. The reverse (STK →
+AEM / APM) supplies the object identity and body frame STK leaves implicit as placeholders, also
+warning. A spin attitude has no STK section here and raises.
 
 ### Conjunction, tracking — `ccsds-cdm`, `ccsds-tdm`
 

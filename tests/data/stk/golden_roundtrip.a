@@ -1,0 +1,21 @@
+stk.v.11.0
+
+# orbit-formats round-trip golden — STK attitude (quaternion)
+
+BEGIN Attitude
+
+NumberOfAttitudePoints 3
+ScenarioEpoch 01 Jan 2000 12:00:00.000
+CentralBody Earth
+CoordinateAxes J2000
+BlockingFactor 20
+InterpolationMethod Lagrange
+InterpolationOrder 1
+
+AttitudeTimeQuaternions
+
+0.0 0.0 0.0 0.0 1.0
+60.0 0.0 0.0 0.5 0.8660254037844386
+120.0 0.0 0.0 0.8660254037844386 0.5
+
+END Attitude

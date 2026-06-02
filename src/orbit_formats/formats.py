@@ -174,10 +174,26 @@ def _sig_sp3(data: bytes, text: str | None) -> Confidence:
 
 
 def _sig_stk(data: bytes, text: str | None) -> Confidence:
+    # STK ephemeris and STK attitude share the ``stk.v.X.Y`` banner; the ``BEGIN`` block
+    # keyword disambiguates them. Require ``BEGIN Ephemeris`` so an attitude ``.a`` (which
+    # carries the same banner but ``BEGIN Attitude``) is not mistaken for an ephemeris.
     if text is None:
         return Confidence.NONE
     first = _first_nonempty_line(text)
-    return Confidence.HIGH if first is not None and _STK_RE.match(first) else Confidence.NONE
+    if first is None or not _STK_RE.match(first):
+        return Confidence.NONE
+    return Confidence.HIGH if "BEGIN Ephemeris" in text else Confidence.NONE
+
+
+def _sig_stk_attitude(data: bytes, text: str | None) -> Confidence:
+    # The attitude counterpart of ``_sig_stk``: the same ``stk.v.X.Y`` banner, keyed on the
+    # ``BEGIN Attitude`` block so it never collides with the ephemeris ``.e``.
+    if text is None:
+        return Confidence.NONE
+    first = _first_nonempty_line(text)
+    if first is None or not _STK_RE.match(first):
+        return Confidence.NONE
+    return Confidence.HIGH if "BEGIN Attitude" in text else Confidence.NONE
 
 
 def _sig_rinex(data: bytes, text: str | None) -> Confidence:
@@ -228,6 +244,7 @@ FORMATS: tuple[FormatSpec, ...] = (
     FormatSpec("ccsds-ndm", "ndm", (".ndm",), signature=_sig_ndm),
     FormatSpec("sp3", "ephemeris", (".sp3",), writable=False, signature=_sig_sp3),
     FormatSpec("stk-ephemeris", "ephemeris", (".e", ".ephem"), signature=_sig_stk),
+    FormatSpec("stk-attitude", "attitude", (".a",), signature=_sig_stk_attitude),
     FormatSpec("gmat-report", "ephemeris", (".report",), writable=False, signature=None),
     FormatSpec(
         "rinex-nav", "mean-elements", (".rnx", ".nav"), writable=False, signature=_sig_rinex
