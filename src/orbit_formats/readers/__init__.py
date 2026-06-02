@@ -19,6 +19,7 @@ from orbit_formats.readers import (  # noqa: F401
     ccsds_tdm,
     gmat_report,
     sp3,
+    spk,
     stk_ephemeris,
     tle,
 )

@@ -40,6 +40,7 @@ from orbit_formats.writers.ocm import write_ocm
 from orbit_formats.writers.oem import write_oem
 from orbit_formats.writers.omm import write_omm
 from orbit_formats.writers.opm import write_opm
+from orbit_formats.writers.spk import write_spk
 from orbit_formats.writers.stk_ephemeris import write_stk_ephemeris
 from orbit_formats.writers.tdm import write_tdm
 from orbit_formats.writers.tle import write_tle
@@ -148,6 +149,7 @@ def test_each_warning_is_catchable_by_its_own_type(cls: type[LossyConversionWarn
 GOLDEN_OEM = Path(__file__).parent / "data" / "oem" / "golden_roundtrip.oem"
 GOLDEN_OPM = Path(__file__).parent / "data" / "opm" / "golden_opm.opm"
 GOLDEN_STK = Path(__file__).parent / "data" / "stk" / "golden_roundtrip.e"
+GOLDEN_SPK = Path(__file__).parent / "data" / "spk" / "golden.bsp"
 
 # A single-row GMAT report with a complete state (no NaN-fill) and a position-only one
 # (velocity absent -> MissingFieldWarning) — minimal and self-contained.
@@ -231,6 +233,26 @@ def _incomplete_stk_ephemeris() -> Ephemeris:
         epochs=np.array(["2024-01-01T00:00:00"], dtype="datetime64[ns]"),
         positions=np.array([[7000.0, 0.0, 0.0]]),
         velocities=np.array([[0.0, 7.5, 0.0]]),
+    )
+
+
+def _spk_ephemeris() -> Ephemeris:
+    """An ephemeris read from the SPK golden (carries an SpkFile source_native)."""
+    eph = read(GOLDEN_SPK.read_bytes())
+    assert isinstance(eph, Ephemeris)
+    return eph
+
+
+def _incomplete_spk_ephemeris() -> Ephemeris:
+    """An ephemeris with no spine — an SPK write must warn for each required field it defaults."""
+    return Ephemeris(
+        metadata=Metadata(),
+        epochs=np.array(
+            ["2000-01-01T12:00:00", "2000-01-01T12:10:00", "2000-01-01T12:20:00"],
+            dtype="datetime64[ns]",
+        ),
+        positions=np.array([[7000.0, 0.0, 0.0], [6999.0, 60.0, 0.0], [6997.0, 120.0, 0.0]]),
+        velocities=np.array([[0.0, 7.5, 0.0]] * 3),
     )
 
 
@@ -487,6 +509,18 @@ _META_CASES = [
         lambda: write_stk_ephemeris(_incomplete_stk_ephemeris()),
         loses=True,
         writer_format="stk-ephemeris",
+    ),
+    _MetaCase(
+        "spk write: content-lossless re-serialise",
+        lambda: write_spk(_spk_ephemeris()),
+        loses=False,
+        writer_format="spk",
+    ),
+    _MetaCase(
+        "spk write: synthesised, missing required spine",
+        lambda: write_spk(_incomplete_spk_ephemeris()),
+        loses=True,
+        writer_format="spk",
     ),
     _MetaCase(
         "tle write: TLE -> TLE echo",
