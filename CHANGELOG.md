@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-02
+
+This release completes the CCSDS NDM family and broadens the canonical model beyond orbits:
+orbit-formats now reads and writes the attitude (AEM, APM), conjunction (CDM), tracking (TDM),
+and comprehensive-orbit (OCM) messages in both KVN and XML, composes them through the aggregate
+NDM container, reads and writes SPICE SPK kernels behind an optional `[spk]` extra, reads RINEX
+navigation, and ships a complete, code-derived conversion-capability matrix — every conversion now
+cross-validated against independent references (Orekit and SPICE), under the same
+lossless-or-explicitly-warned contract.
+
+### Added
+
+- CCSDS **AEM** and **APM** attitude messages (KVN + XML), promoting the canonical `Attitude`
+  category to a populated node — quaternion, Euler-angle, and spin representations with the frames
+  an attitude is expressed between.
+- CCSDS **CDM** conjunction message (KVN + XML) and the canonical `Conjunction` category — TCA,
+  miss distance, relative position/velocity, per-object metadata and state, and the RTN covariances.
+- CCSDS **TDM** tracking message (KVN + XML) and the canonical `Tracking` category — range, Doppler,
+  and angle observations with their participants, paths, and data segments.
+- CCSDS **OCM** comprehensive-orbit message (KVN + XML): orbit-relevant blocks (trajectory,
+  covariance, manoeuvres) adapt to the canonical `Ephemeris` / `StateVector`, while blocks the
+  canonical form cannot represent (physical properties, perturbations, orbit determination,
+  user-defined) survive a same-format round-trip on `source_native` and are warned when a
+  cross-format conversion drops them.
+- **Aggregate / combined NDM** container (KVN + XML): reads a multi-message NDM into an ordered
+  collection of canonical objects and writes a collection back, preserving the wrapper header.
+- **SPK** (SPICE binary kernel) read and write behind the optional **`[spk]`** extra (`spiceypy`),
+  detected by binary magic; the kernel path stays out of the base install and raises a typed,
+  actionable error when the extra is missing.
+- **RINEX navigation** reader (read-only): broadcast ephemerides adapt to the canonical form with
+  the correct frame and GNSS time-system tags.
+- The complete **conversion-capability matrix**: every physically-meaningful cross-form and
+  cross-frame edge among the supported formats is implemented, classified (lossless /
+  lossy-with-warning / unsupported, with the reason), and derived from the registered edges so the
+  published matrix cannot drift from the code.
+
+### Changed
+
+- Conversions are now cross-validated in CI against external references — Orekit (state, element,
+  frame, and time-scale conversions) and SPICE (the SPK round-trip) — both dev/CI-only and absent
+  from the runtime dependency set.
+
 ## [0.2.0] - 2026-05-31
 
 This release widens the writable format surface and the CCSDS notation coverage:
