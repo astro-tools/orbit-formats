@@ -8,7 +8,9 @@ reconstructs the lines from the mean elements and the OMM's TLE bookkeeping (OMM
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -20,12 +22,15 @@ from orbit_formats import (
     UnsupportedConversionError,
     convert,
     read,
+    write,
 )
 from orbit_formats.readers.ccsds_omm import OmmFile
 from orbit_formats.registry import get_writer
 from orbit_formats.warnings import LossyConversionWarning
 from orbit_formats.writers.omm import write_omm
 from orbit_formats.writers.tle import _format_exponential, write_tle
+
+_DATA = Path(__file__).parent / "data" / "tle"
 
 # A real, checksum-valid ISS 3LE.
 TLE_ISS = (
@@ -188,3 +193,48 @@ def test_tle_round_trip_through_omm_loses_nothing(
     omm_set = read(write_omm(read(TLE_ISS), ".omm"))
     assert isinstance(omm_set.source_native, OmmFile)
     assert_no_silent_loss(lambda: write_tle(omm_set), loses=False)
+
+
+# --- catalogue, alpha-5, and the 3LE write notation ------------------------------------
+
+
+def test_catalogue_echo_round_trips_content_losslessly() -> None:
+    # A multi-set catalogue read back out re-emits every set in order, byte-for-byte.
+    raw = (_DATA / "golden_catalog.tle").read_bytes()
+    assert write_tle(read(raw)) == raw
+
+
+def test_alpha5_tle_to_omm_carries_the_decoded_catalog_number() -> None:
+    # The OMM enrichment reads TleRecord.norad_catalog_number, which must decode the alpha-5 id.
+    omm = read(write_omm(read((_DATA / "golden_alpha5.tle").read_bytes()), ".omm")).source_native
+    assert isinstance(omm, OmmFile)
+    assert omm.tle_parameters is not None
+    assert omm.tle_parameters.norad_cat_id == 148493
+
+
+def test_writing_to_3le_emits_the_name_line(tmp_path: Path) -> None:
+    # The .3le notation requests the name line; the named ISS set round-trips byte-identically.
+    out = tmp_path / "iss.3le"
+    write(read(TLE_ISS), out)
+    assert out.read_bytes() == TLE_ISS
+
+
+def test_requesting_3le_for_a_nameless_source_warns(tmp_path: Path) -> None:
+    # A 2LE has no name; .3le requests one, so the writer warns rather than fabricating it,
+    # and emits a valid two-line set.
+    out = tmp_path / "iss.3le"
+    with pytest.warns(LossyConversionWarning) as caught:
+        write(read(TLE_2LE), out)
+    warned = {field for record in caught for field in getattr(record.message, "fields", ())}
+    assert "OBJECT_NAME" in warned
+    assert out.read_bytes() == TLE_2LE
+
+
+def test_default_write_keeps_a_2le_without_requesting_a_name(tmp_path: Path) -> None:
+    # The default / .tle notation echoes verbatim — a nameless set stays two-line and silent.
+    out = tmp_path / "iss.tle"
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        write(read(TLE_2LE), out)
+    assert not [r for r in caught if isinstance(r.message, LossyConversionWarning)]
+    assert out.read_bytes() == TLE_2LE

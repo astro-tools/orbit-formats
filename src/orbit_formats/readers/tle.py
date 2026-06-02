@@ -8,6 +8,15 @@ lines via ``sgp4`` — the elements stay **mean** (TEME / UTC), never osculating
 SGP4 state at the TLE epoch is reachable through :meth:`TleRecord.epoch_state`; nothing is
 propagated past the epoch (that is a propagation, not a format conversion, and is the
 caller's job).
+
+Three on-disk variants are read. A bare **two-line** set and a name-annotated **three-line**
+(3LE) set both parse into a single :class:`MeanElementSet`. A **catalogue** — many element
+sets concatenated in one file, the Celestrak / Space-Track convention — parses into a
+:class:`TleCatalog`: :func:`~orbit_formats.read` returns the *first* set's
+:class:`MeanElementSet` with the whole catalogue on ``source_native``, and
+:meth:`TleCatalog.to_canonical` materialises every set in file order. The alpha-5 extended
+NORAD designator (a leading letter lifting the catalog number past five digits, e.g.
+``E8493`` = ``148493``) is decoded throughout.
 """
 
 from __future__ import annotations
@@ -27,10 +36,15 @@ from orbit_formats.errors import MalformedSourceError
 from orbit_formats.registry import register_reader
 from orbit_formats.source import Source
 
-__all__ = ["TleRecord", "read_tle"]
+__all__ = ["TleCatalog", "TleRecord", "read_tle"]
 
 # A TLE element line is exactly 69 characters wide, with the line number in column 1.
 _TLE_LINE_LEN = 69
+
+# The alpha-5 alphabet: catalog field column 1 maps a digit to its value and a letter to a
+# base of 10-33, with ``I`` and ``O`` omitted (they read as ``1`` / ``0``), so the five-character
+# field reaches catalog number 339999 while staying five wide.
+_ALPHA5_DIGITS = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 
 # sgp4 stores angular rates internally in rad/min; the TLE (and OMM) convention is
 # rev/day. rev/day = rad/min * 1440 (min/day) / 2pi (rad/rev). The derivative fields carry
@@ -66,8 +80,8 @@ class TleRecord(FidelityModel):
 
     @property
     def norad_catalog_number(self) -> int:
-        """The NORAD catalog number (line 1, columns 3-7)."""
-        return int(self.line1[2:7])
+        """The NORAD catalog number (line 1, columns 3-7), with the alpha-5 form decoded."""
+        return _decode_alpha5(self.line1[2:7])
 
     @property
     def classification(self) -> str:
@@ -127,24 +141,65 @@ class TleRecord(FidelityModel):
         )
 
 
-def read_tle(source: Source) -> MeanElementSet:
-    """Read a TLE / 3LE into a canonical :class:`MeanElementSet` (mean elements, TEME/UTC).
+@dataclass(frozen=True)
+class TleCatalog(FidelityModel):
+    """A parsed multi-set TLE / 3LE catalogue — the per-set :class:`TleRecord` models, in order.
 
-    Parses the two-line (optionally name-prefixed three-line) element set via ``sgp4``,
-    retains the raw lines as ``source_native`` (a :class:`TleRecord`), and tags the result
-    TEME / UTC / Earth with the NORAD id on ``metadata.object_id``. The elements stay mean;
-    the single epoch state is available via ``result.source_native.epoch_state()``.
-    Raises :class:`~orbit_formats.errors.MalformedSourceError` for a missing line, an
-    invalid checksum, disagreeing satellite numbers, or elements sgp4 rejects.
+    The faithful model for a file holding more than one element set (a single set parses to a
+    bare :class:`TleRecord`). :func:`read_tle` returns the first set's :class:`MeanElementSet`
+    with this catalogue on ``source_native``; :meth:`to_canonical` adapts every set to its own
+    :class:`MeanElementSet`, each carrying its own :class:`TleRecord` so an individual set
+    round-trips on its own.
     """
-    name, line1, line2 = _extract_lines(source.read_text())
-    _validate(line1, line2)
-    satrec = _parse(line1, line2)
+
+    format_name: ClassVar[str] = "tle"
+
+    records: tuple[TleRecord, ...]
+
+    def to_canonical(self) -> list[MeanElementSet]:
+        """Every set's canonical :class:`MeanElementSet`, in file order."""
+        return [_mean_set(record) for record in self.records]
+
+
+def read_tle(source: Source) -> MeanElementSet:
+    """Read a TLE / 3LE (single or catalogue) into a canonical :class:`MeanElementSet`.
+
+    Parses each two-line (optionally name-prefixed three-line) element set via ``sgp4`` and
+    retains the raw lines. A file with a single set returns its :class:`MeanElementSet` with a
+    :class:`TleRecord` on ``source_native``; a catalogue of several sets returns the **first**
+    set's :class:`MeanElementSet` with the whole :class:`TleCatalog` on ``source_native``, and
+    ``result.source_native.to_canonical()`` materialises the full sequence in file order. The
+    result is tagged TEME / UTC / Earth with the NORAD id on ``metadata.object_id``; the elements
+    stay mean and the single epoch state is available via ``result.source_native.epoch_state()``
+    (a single set) or each record's. Raises
+    :class:`~orbit_formats.errors.MalformedSourceError` for a missing line, an invalid checksum,
+    disagreeing satellite numbers, or elements sgp4 rejects.
+    """
+    records = [
+        TleRecord(line1=line1, line2=line2, name=name)
+        for name, line1, line2 in _extract_records(source.read_text())
+    ]
+    for record in records:
+        _validate(record.line1, record.line2)
+    if len(records) == 1:
+        return _mean_set(records[0])
+    catalog = TleCatalog(records=tuple(records))
+    return _mean_set(catalog.records[0], source_native=catalog)
+
+
+def _mean_set(record: TleRecord, source_native: FidelityModel | None = None) -> MeanElementSet:
+    """Adapt one :class:`TleRecord` to a canonical :class:`MeanElementSet`.
+
+    ``source_native`` defaults to the record itself (the single-set case); a catalogue read
+    passes the :class:`TleCatalog` for the first set, so the whole catalogue rides on the
+    returned object while each :meth:`TleCatalog.to_canonical` element keeps its own record.
+    """
+    satrec = _parse(record.line1, record.line2)
     # mean_motion_dot / _ddot are the TLE-printed first-derivative-over-2 and
     # second-derivative-over-6 drag terms, recovered from sgp4's internal rad/min rates.
     return MeanElementSet(
-        metadata=_tle_metadata(name, line1),
-        source_native=TleRecord(line1=line1, line2=line2, name=name),
+        metadata=_tle_metadata(record.name, record.line1),
+        source_native=record if source_native is None else source_native,
         epoch=_epoch_datetime64(satrec),
         mean_motion=float(satrec.no_kozai) * _REV_DAY_PER_RAD_MIN,
         eccentricity=float(satrec.ecco),
@@ -159,32 +214,37 @@ def read_tle(source: Source) -> MeanElementSet:
     )
 
 
-def _extract_lines(text: str) -> tuple[str | None, str, str]:
-    """Pull the (optional name, line 1, line 2) out of TLE / 3LE text.
+def _extract_records(text: str) -> list[tuple[str | None, str, str]]:
+    """Pull every ``(optional name, line 1, line 2)`` set out of TLE / 3LE / catalogue text.
 
-    The first ``1 ``/``2 `` element lines are the element set; any non-element line before
-    them is the 3LE name (a leading ``0 `` line-zero marker is stripped). Trailing content
-    is ignored — a single element set is read. Raises
-    :class:`~orbit_formats.errors.MalformedSourceError` if a complete pair is not found.
+    Each ``1 ``/``2 `` element-line pair is one set; a non-element line before a set's line 1 is
+    its 3LE name (a leading ``0 `` line-zero marker is stripped). Blank lines and any trailing
+    non-element content are ignored. Raises
+    :class:`~orbit_formats.errors.MalformedSourceError` if no complete set is found or a line 1
+    is left without its matching line 2.
     """
+    records: list[tuple[str | None, str, str]] = []
     name: str | None = None
     line1: str | None = None
-    line2: str | None = None
     for raw in text.splitlines():
         line = raw.rstrip()
         if not line:
             continue
         if line1 is None and _is_element_line(line, "1"):
             line1 = line
-        elif line2 is None and _is_element_line(line, "2"):
-            line2 = line
-        elif line1 is None and line2 is None:
+        elif line1 is not None and _is_element_line(line, "2"):
+            records.append((name, line1, line))
+            name = None
+            line1 = None
+        elif line1 is None:
             name = _strip_name_marker(line)
-    if line1 is None or line2 is None:
+    if line1 is not None:
+        raise MalformedSourceError("a TLE line 1 has no matching line 2")
+    if not records:
         raise MalformedSourceError(
             "could not find a complete two-line element set (a 69-character line 1 and line 2)"
         )
-    return name, line1, line2
+    return records
 
 
 def _is_element_line(line: str, number: str) -> bool:
@@ -195,6 +255,21 @@ def _is_element_line(line: str, number: str) -> bool:
 def _strip_name_marker(line: str) -> str:
     """Strip the optional ``0 `` line-zero marker from a 3LE name line."""
     return line[2:].strip() if line.startswith("0 ") else line.strip()
+
+
+def _decode_alpha5(field: str) -> int:
+    """Decode a TLE 5-character catalog field, honouring the alpha-5 extension.
+
+    A purely numeric field parses directly. An alpha-5 field — a leading letter lifting the
+    catalog number past the five-digit ceiling — maps that letter to its value (``A`` = 10 …
+    ``Z`` = 33, ``I`` / ``O`` omitted so they cannot be read as ``1`` / ``0``) and appends the
+    trailing four digits: ``E8493`` is ``148493``.
+    """
+    stripped = field.strip()
+    first = stripped[0].upper()
+    if first.isdigit():
+        return int(stripped)
+    return _ALPHA5_DIGITS.index(first) * 10000 + int(stripped[1:])
 
 
 def _validate(line1: str, line2: str) -> None:
@@ -240,10 +315,14 @@ def _epoch_datetime64(satrec: Satrec) -> np.datetime64:
 
 
 def _tle_metadata(name: str | None, line1: str) -> Metadata:
-    """The shared metadata spine for a TLE: TEME / UTC / Earth, NORAD id from line 1."""
+    """The shared metadata spine for a TLE: TEME / UTC / Earth, NORAD id from line 1.
+
+    ``object_id`` is the decimal NORAD catalog number, with the alpha-5 designator decoded, so it
+    is numeric even for an extended id (``E8493`` → ``148493``).
+    """
     return Metadata(
         object_name=name,
-        object_id=line1[2:7].strip(),
+        object_id=str(_decode_alpha5(line1[2:7])),
         reference_frame=_FRAME,
         central_body=_CENTRAL_BODY,
         time_scale=_TIME_SCALE,

@@ -55,7 +55,8 @@ explicit `format=` (e.g. `write(eph, "sat.xml", format="ccsds-oem")`).
 A two-line (optionally name-prefixed three-line) element set reads into a `MeanElementSet`.
 The elements are derived from the lines with `sgp4` and stay **mean** elements in the
 **TEME** frame on the **UTC** scale, geocentric; the NORAD id is tagged on
-`metadata.object_id`.
+`metadata.object_id`. `format="3le"` is accepted as a synonym for `tle` — the name-annotated
+form is the same format, not a separate one.
 
 - **Expresses:** mean motion (rev/day), eccentricity, inclination, RAAN, argument of
   periapsis, mean anomaly, and the SGP4 drag terms (`bstar`, mean-motion derivatives).
@@ -63,14 +64,25 @@ The elements are derived from the lines with `sgp4` and stay **mean** elements i
   than the element-set epoch is a *propagation*, not a format conversion — out of scope.
   The single SGP4 state at the epoch is available via the fidelity model
   (`result.source_native.epoch_state()`).
-- **Fidelity:** the raw 69-character lines are kept verbatim on `source_native`.
-- **Writing:** a TLE read back out is echoed verbatim. A `MeanElementSet` from another source
-  (an OMM, say) is reconstructed into two element lines with fresh checksums — *element-level*
-  lossless (a re-read reproduces the same elements to the TLE's representable precision),
-  warning for each TLE identifier the source could not supply.
+- **Alpha-5 designators.** The extended NORAD scheme — a leading letter that lifts the catalog
+  number past five digits (`E8493` is `148493`, with `I` and `O` omitted so they cannot be read
+  as `1` / `0`) — is decoded, so `metadata.object_id` is numeric even for an extended id.
+- **A catalogue.** Many element sets in one file (the Celestrak / Space-Track convention). `read`
+  returns the **first** set's `MeanElementSet`; the whole catalogue rides on `source_native` (a
+  `TleCatalog`), and `result.source_native.to_canonical()` materialises every set in file order,
+  each carrying its own `TleRecord`. A lone set keeps a `TleRecord` on `source_native` directly.
+- **Fidelity:** the raw 69-character lines (and the optional name) are kept verbatim on
+  `source_native`.
+- **Writing:** a TLE read back out is echoed verbatim — every set, for a catalogue. A
+  `MeanElementSet` from another source (an OMM, say) is reconstructed into two element lines with
+  fresh checksums — *element-level* lossless (a re-read reproduces the same elements to the TLE's
+  representable precision), warning for each TLE identifier the source could not supply.
+- **Two-line vs three-line on write:** the leading name line is emitted whenever the source
+  carries a name. A `.3le` destination *requests* the name line; a source with no name to supply
+  warns rather than fabricating one.
 - **Detection:** the `1 ` / `2 ` line structure with valid mod-10 checksums and agreeing
-  satellite numbers, or the `.tle` / `.3le` extension. A bad checksum or disagreeing
-  satellite numbers raise `MalformedSourceError`.
+  satellite numbers — name-annotated, alpha-5, and multi-set files all match — or the `.tle` /
+  `.3le` extension. A bad checksum or disagreeing satellite numbers raise `MalformedSourceError`.
 
 ## CCSDS OEM (KVN + XML) — `ccsds-oem`
 

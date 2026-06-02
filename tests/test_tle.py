@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -12,8 +14,10 @@ from orbit_formats import (
     detect_format,
     read,
 )
-from orbit_formats.readers.tle import TleRecord, read_tle
+from orbit_formats.readers.tle import TleCatalog, TleRecord, read_tle
 from orbit_formats.registry import get_reader
+
+_DATA = Path(__file__).parent / "data" / "tle"
 
 # A real, checksum-valid ISS three-line element set (the canonical sgp4 test elements).
 NAME_LINE = "ISS (ZARYA)"
@@ -155,3 +159,84 @@ def test_disagreeing_satellite_numbers_are_rejected() -> None:
 def test_the_tle_signature_is_detected_before_reading() -> None:
     # The DoD's auto-detection contract: TLE content routes to the tle format id.
     assert detect_format(TLE_3LE) == "tle"
+
+
+# --- name-annotated 3LE / catalogue / alpha-5 variants ---------------------------------
+
+
+def test_detection_handles_3le_catalogue_and_alpha5_files() -> None:
+    # The DoD: content detection (no extension hint) routes every TLE variant to the tle id.
+    for golden in ("golden_3le.3le", "golden_catalog.tle", "golden_alpha5.tle"):
+        assert detect_format((_DATA / golden).read_bytes()) == "tle", golden
+
+
+def test_format_3le_is_a_synonym_for_tle() -> None:
+    # The 3LE is the tle format in its name-annotated notation, so format="3le" reads it.
+    result = read(TLE_3LE, format="3le")
+    assert isinstance(result, MeanElementSet)
+    assert result.metadata.object_name == "ISS (ZARYA)"
+
+
+def test_a_single_set_keeps_a_tle_record_native() -> None:
+    # A lone set (2LE or 3LE) keeps the per-record fidelity model, not a catalogue.
+    assert isinstance(read(TLE_3LE).source_native, TleRecord)
+    assert isinstance(read(TLE_2LE).source_native, TleRecord)
+
+
+def test_3le_golden_reads_with_the_object_name() -> None:
+    result = read(_DATA / "golden_3le.3le")  # detection by content + the .3le extension
+    assert isinstance(result, MeanElementSet)
+    assert result.metadata.object_name == "ISS (ZARYA)"
+    assert result.metadata.object_id == "25544"
+
+
+def test_a_catalogue_parses_into_a_sequence_with_object_names() -> None:
+    # The DoD: a multi-set file parses into the expected MeanElementSet sequence, names populated.
+    first = read(_DATA / "golden_catalog.tle")
+    catalog = first.source_native
+    assert isinstance(catalog, TleCatalog)
+    assert len(catalog.records) == 3
+    sequence = catalog.to_canonical()
+    assert [m.metadata.object_name for m in sequence] == [
+        "ISS (ZARYA)",
+        "NOAA 19",
+        "GPS BIIR-2  (PRN 13)",
+    ]
+    assert [m.metadata.object_id for m in sequence] == ["25544", "33591", "24876"]
+    # read() returns the first set; the canonical fields match the first sequence element.
+    assert isinstance(first, MeanElementSet)
+    assert first.metadata.object_name == "ISS (ZARYA)"
+    assert first.mean_motion == pytest.approx(sequence[0].mean_motion)
+
+
+def test_each_catalogue_record_carries_its_own_tle_record() -> None:
+    catalog = read(_DATA / "golden_catalog.tle").source_native
+    assert isinstance(catalog, TleCatalog)
+    sequence = catalog.to_canonical()
+    assert all(isinstance(m.source_native, TleRecord) for m in sequence)
+    assert sequence[1].source_native is catalog.records[1]
+
+
+def test_a_catalogue_record_yields_its_own_epoch_state() -> None:
+    catalog = read(_DATA / "golden_catalog.tle").source_native
+    assert isinstance(catalog, TleCatalog)
+    state = catalog.records[2].epoch_state()
+    assert isinstance(state, StateVector)
+    assert state.metadata.object_id == "24876"
+    assert state.metadata.reference_frame == "TEME"
+
+
+def test_alpha5_designator_is_decoded() -> None:
+    # The alpha-5 catalog id E8493 decodes to 148493 (E=14, then the trailing four digits).
+    result = read(_DATA / "golden_alpha5.tle")
+    assert isinstance(result, MeanElementSet)
+    assert result.metadata.object_id == "148493"
+    record = result.source_native
+    assert isinstance(record, TleRecord)
+    assert record.norad_catalog_number == 148493  # the property no longer trips on the letter
+
+
+def test_a_line1_without_a_matching_line2_is_rejected() -> None:
+    lonely = f"{NAME_LINE}\n{LINE1}\n".encode()
+    with pytest.raises(MalformedSourceError, match="no matching line 2"):
+        read(lonely, format="tle")
