@@ -39,6 +39,7 @@ nav:
   - Formats: formats.md
   - Lossy conversions: lossy-conversions.md
   - Conversion matrix: conversion-matrix.md
+  - Validation: validation.md
   - Command-line interface: cli.md
   - API reference: api.md
 

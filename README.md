@@ -8,12 +8,13 @@
 
 Lossless round-trip across orbital state-vector and ephemeris formats.
 
-> **Status:** orbit-formats reads TLE, CCSDS OEM / OMM / OPM (KVN and XML), STK ephemeris,
-> SP3, and GMAT report files; writes TLE, CCSDS OEM / OMM / OPM, and STK ephemeris; rotates
-> Cartesian states across TEME / EME2000 / GCRF / ICRF / ITRF; and round-trips its writable
-> formats losslessly. More formats (the CCSDS attitude, conjunction, tracking, and OCM
-> messages, SPICE SPK, and RINEX) land in later versions. See the
-> [changelog](CHANGELOG.md) for released functionality.
+> **Status:** orbit-formats reads and writes the full CCSDS NDM family (OEM, OMM, OPM, OCM, AEM,
+> APM, CDM, TDM, and the combined NDM, in KVN and XML), TLE, STK ephemeris, and SPICE SPK (behind
+> the `[spk]` extra); additionally reads SP3, GMAT report, and RINEX navigation; rotates Cartesian
+> states across TEME / EME2000 / GCRF / ICRF / ITRF; and round-trips its writable formats
+> losslessly, cross-validated against Orekit and SPICE. Vendor and alternative encodings (STK
+> attitude, the Celestrak / Space-Track OMM encodings, an SP3 writer) follow in later versions.
+> See the [changelog](CHANGELOG.md) for released functionality.
 
 ## What this is
 
@@ -59,9 +60,17 @@ and the
 | CCSDS OEM (KVN + XML) | ✅ | ✅ | ephemeris |
 | CCSDS OMM (KVN + XML) | ✅ | ✅ | mean-element set |
 | CCSDS OPM (KVN + XML) | ✅ | ✅ | state vector |
+| CCSDS OCM (KVN + XML) | ✅ | ✅ | ephemeris |
+| CCSDS AEM (KVN + XML) | ✅ | ✅ | attitude |
+| CCSDS APM (KVN + XML) | ✅ | ✅ | attitude |
+| CCSDS CDM (KVN + XML) | ✅ | ✅ | conjunction |
+| CCSDS TDM (KVN + XML) | ✅ | ✅ | tracking |
+| CCSDS combined NDM (KVN + XML) | ✅ | ✅ | aggregate of NDM messages |
+| GMAT report | ✅ | — | ephemeris / state |
 | STK ephemeris | ✅ | ✅ | ephemeris |
 | SP3 (SP3-c / SP3-d) | ✅ | — | ephemeris |
-| GMAT report | ✅ | — | ephemeris / state |
+| RINEX navigation (3.x) | ✅ | — | mean-element set / state |
+| SPK (`[spk]` extra) | ✅ | ✅ | ephemeris |
 
 The [canonical representation](https://astro-tools.github.io/orbit-formats/canonical-representation/)
 — a small typed dataclass family unified by a metadata spine — is the format-agnostic form

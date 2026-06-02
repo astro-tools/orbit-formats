@@ -38,6 +38,33 @@ An **adapter** maps each fidelity model to and from the canonical metamodel. Rea
 `format → fidelity model → canonical`; writing routes `canonical → fidelity model →
 format`.
 
+## The non-orbit categories
+
+The orbit categories — `StateVector`, `Ephemeris`, `MeanElementSet` — describe *where* a body
+is and project to the DataFrame. The three categories the CCSDS attitude, conjunction, and
+tracking messages read into describe something else, so they carry their own fields and have no
+DataFrame projection:
+
+- **`Attitude`** (AEM / APM) — how a body is *oriented*: the rotation from one reference frame to
+  another, sampled at one epoch (APM) or over a time series (AEM). `attitude_type` tags the
+  representation — `QUATERNION`, `EULER_ANGLE`, or `SPIN` — and `records` holds one row per
+  `epochs` entry in that representation's columns; `frame_a` and `frame_b` name the two frames
+  the rotation maps between (the spine's single `reference_frame` cannot, so it is left unset),
+  with `euler_rot_seq` for the Euler case. Quaternions are stored scalar-last (`Q1 Q2 Q3 QC`)
+  regardless of the source's notation.
+- **`Conjunction`** (CDM) — a close approach between *two* objects: the time of closest approach
+  `tca`, the `miss_distance`, the relative position / velocity / speed in the RTN frame, and a
+  pair of `objects`. Each `ConjunctionObject` carries its designator, reference frame, its `(6,)`
+  Cartesian state at TCA, and its `(6, 6)` RTN position/velocity covariance. The spine tags the
+  primary object and the originator; the time scale is UTC (the CDM convention).
+- **`Tracking`** (TDM) — the raw measurements a ground station records: the `participants` and a
+  flat sequence of `observations`, each a `(observation_type, epoch, value)` triple, concatenated
+  across the message's segments. The spine carries the originator and time scale.
+
+Per-format specifics that have no slot in these schemas — an AEM's interpolation block, a CDM's
+screen-volume and extended covariance, a TDM's full segment metadata — ride on the
+`source_native` fidelity model below, exactly as the orbit categories' format-specific fields do.
+
 ## `source_native` — the round-trip handle
 
 A canonical object keeps an optional handle, `source_native`, back to the fidelity model it
