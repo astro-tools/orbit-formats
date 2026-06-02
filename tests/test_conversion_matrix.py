@@ -80,6 +80,8 @@ _SOURCES: dict[str, tuple[bytes | Path, str | None]] = {
     "ccsds-cdm": (_DATA / "cdm/golden_cdm.cdm", None),
     "ccsds-tdm": (_DATA / "tdm/golden_tdm.tdm", None),
     "ccsds-ndm": (_DATA / "ndm/golden_ndm.ndm", None),
+    "omm-json": (_DATA / "omm/golden_omm.json", None),
+    "omm-csv": (_DATA / "omm/golden_omm.csv", None),
 }
 
 # Destination extension per writable format, so write() resolves the right writer/notation.
@@ -97,6 +99,8 @@ _EXTENSION: dict[str, str] = {
     "ccsds-cdm": ".cdm",
     "ccsds-tdm": ".tdm",
     "ccsds-ndm": ".ndm",
+    "omm-json": ".json",
+    "omm-csv": ".csv",
 }
 
 _SOURCE_FORMATS = list(known_format_ids())

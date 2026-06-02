@@ -59,6 +59,7 @@ and the
 | TLE / 3LE | ✅ | ✅ | mean-element set |
 | CCSDS OEM (KVN + XML) | ✅ | ✅ | ephemeris |
 | CCSDS OMM (KVN + XML) | ✅ | ✅ | mean-element set |
+| OMM JSON / CSV (Celestrak / Space-Track) | ✅ | ✅ | mean-element set |
 | CCSDS OPM (KVN + XML) | ✅ | ✅ | state vector |
 | CCSDS OCM (KVN + XML) | ✅ | ✅ | ephemeris |
 | CCSDS AEM (KVN + XML) | ✅ | ✅ | attitude |

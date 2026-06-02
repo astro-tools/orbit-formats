@@ -12,6 +12,8 @@ fidelity model rather than dropped.
 | TLE / 3LE | `tle` | ✓ | ✓ | mean-element set |
 | CCSDS OEM (KVN + XML) | `ccsds-oem` | ✓ | ✓ | ephemeris |
 | CCSDS OMM (KVN + XML) | `ccsds-omm` | ✓ | ✓ | mean-element set |
+| OMM JSON (Celestrak / Space-Track) | `omm-json` | ✓ | ✓ | mean-element set |
+| OMM CSV (Celestrak / Space-Track) | `omm-csv` | ✓ | ✓ | mean-element set |
 | CCSDS OPM (KVN + XML) | `ccsds-opm` | ✓ | ✓ | state vector |
 | CCSDS OCM (KVN + XML) | `ccsds-ocm` | ✓ | ✓ | ephemeris |
 | CCSDS AEM (KVN + XML) | `ccsds-aem` | ✓ | ✓ | attitude |
@@ -26,7 +28,10 @@ fidelity model rather than dropped.
 | SPK (`[spk]` extra) | `spk` | ✓ | ✓ | ephemeris |
 
 TLE and OMM share the **mean-element set** canonical form, so they convert into each other:
-read a TLE and write an OMM, or read an OMM and write a TLE. A RINEX-navigation mean set is
+read a TLE and write an OMM, or read an OMM and write a TLE. The Celestrak / Space-Track
+[OMM JSON and CSV](#omm-json-and-csv-omm-json-omm-csv) encodings are the same form again — flat
+serialisations of the OMM that round-trip into the CCSDS OMM, a TLE, and each other. A
+RINEX-navigation mean set is
 *also* in the mean-element form, but it carries GNSS **broadcast** elements rather than SGP4
 elements, so it does **not** convert to a TLE or OMM — see [RINEX navigation](#rinex-navigation-3x-rinex-nav)
 below.
@@ -118,6 +123,35 @@ lines).
   (`.omm` → KVN, `.xml` → XML).
 - **Detection:** the `CCSDS_OMM_VERS =` KVN header, or an `<omm>` XML root carrying the same
   marker, or the `.omm` extension.
+
+## OMM JSON and CSV — `omm-json`, `omm-csv`
+
+The flat JSON and CSV encodings of the OMM — the forms Celestrak's GP query and Space-Track's
+OMM class serve, and the forms most operators actually consume. They are not a new format:
+each record parses into the same `OmmFile` fidelity model and the same `MeanElementSet` as the
+CCSDS OMM, so they convert into the CCSDS OMM, a TLE, and each other through the shared
+mean-element form. The keys are the CCSDS OMM keywords (`OBJECT_NAME`, `EPOCH`, `MEAN_MOTION`,
+`ECCENTRICITY`, `INCLINATION`, `RA_OF_ASC_NODE`, `ARG_OF_PERICENTER`, `MEAN_ANOMALY`, the
+`NORAD_CAT_ID` / `CLASSIFICATION_TYPE` / `ELEMENT_SET_NO` / `REV_AT_EPOCH` / `EPHEMERIS_TYPE`
+bookkeeping, and `BSTAR` / `MEAN_MOTION_DOT` / `MEAN_MOTION_DDOT`).
+
+- **A catalogue.** A JSON object *or* array, and a CSV header row plus one or more data rows.
+  `read` returns the **first** record's `MeanElementSet`; the whole catalogue rides on
+  `source_native` (an `OmmCatalog`), and `result.source_native.to_canonical()` materialises
+  every record's `MeanElementSet` in file order.
+- **Implied metadata.** The encoding records an SGP4 / TEME mean set, so `REF_FRAME` (TEME),
+  `TIME_SYSTEM` (UTC), `MEAN_ELEMENT_THEORY` (SGP4), `CENTER_NAME` (EARTH), and
+  `CCSDS_OMM_VERS` (2.0) are implied — honoured when a file states them, defaulted when it does
+  not. Columns the OMM does not define (a Space-Track GP record's extra catalogue fields) are
+  ignored.
+- **Writing** emits the flat operational field set in one of the two notations, with the same
+  byte-identical (`retain_source=True`) / content-lossless / synthesised tiers as the CCSDS OMM
+  writer; a TLE source is enriched with its identifiers (the `TLE → OMM` map). Any field the
+  flat columns cannot hold — a header, comments, covariance, spacecraft parameters,
+  user-defined keys, or a non-TEME/UTC/SGP4 set — is named in a warning rather than dropped.
+- **Detection:** the OMM key set in a JSON object/array (`omm-json`) or a CSV header row
+  (`omm-csv`). The `.json` / `.csv` extensions are ambiguous, so detection is signature-first
+  and an explicit `format=` always wins.
 
 ## CCSDS OPM (KVN + XML) — `ccsds-opm`
 

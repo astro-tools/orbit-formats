@@ -209,6 +209,37 @@ def _sig_spk(data: bytes, text: str | None) -> Confidence:
     return Confidence.HIGH if head.startswith((b"DAF/SPK", b"NAIF/DAF")) else Confidence.NONE
 
 
+# The Celestrak / Space-Track flat OMM encodings. Both carry the CCSDS OMM keyword set, so a
+# file is recognised by the presence of the characteristic mean-element keys — keyed on the
+# notation (JSON object/array vs a comma-separated header row) so the two never collide and
+# neither is mistaken for any other text format. The ``.json`` / ``.csv`` extensions are
+# ambiguous (they name no single format), so detection is signature-first; the extension is
+# only a fallback for content the signature cannot confirm, and an explicit ``format=`` always
+# wins. The headline keys an OMM record cannot omit: the epoch and the angular mean elements.
+_OMM_JSON_KEY_RE = re.compile(r'"\s*(EPOCH|MEAN_MOTION|ECCENTRICITY|INCLINATION)\s*"')
+_OMM_TABULAR_KEYS = ("EPOCH", "MEAN_MOTION", "ECCENTRICITY", "INCLINATION")
+
+
+def _sig_omm_json(data: bytes, text: str | None) -> Confidence:
+    if text is None:
+        return Confidence.NONE
+    stripped = text.lstrip("﻿ \t\r\n")
+    if stripped[:1] not in ("[", "{"):
+        return Confidence.NONE
+    found = {match.group(1) for match in _OMM_JSON_KEY_RE.finditer(text)}
+    return Confidence.HIGH if set(_OMM_TABULAR_KEYS) <= found else Confidence.NONE
+
+
+def _sig_omm_csv(data: bytes, text: str | None) -> Confidence:
+    if text is None:
+        return Confidence.NONE
+    header = _first_nonempty_line(text)
+    if header is None or "," not in header:
+        return Confidence.NONE
+    columns = {cell.strip().strip('"').upper() for cell in header.split(",")}
+    return Confidence.HIGH if set(_OMM_TABULAR_KEYS) <= columns else Confidence.NONE
+
+
 # --- the catalog -----------------------------------------------------------------------
 
 # Order matters only for the rare case two text signatures tie; binary magic is checked
@@ -249,6 +280,8 @@ FORMATS: tuple[FormatSpec, ...] = (
     FormatSpec(
         "rinex-nav", "mean-elements", (".rnx", ".nav"), writable=False, signature=_sig_rinex
     ),
+    FormatSpec("omm-json", "mean-elements", (".json",), signature=_sig_omm_json),
+    FormatSpec("omm-csv", "mean-elements", (".csv",), signature=_sig_omm_csv),
 )
 
 _BY_ID: dict[str, FormatSpec] = {spec.id: spec for spec in FORMATS}
