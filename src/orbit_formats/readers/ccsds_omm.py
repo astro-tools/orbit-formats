@@ -586,6 +586,7 @@ def _to_mean_elements(omm: OmmFile) -> MeanElementSet:
         bstar=None if tle is None else tle.bstar,
         mean_motion_dot=None if tle is None else tle.mean_motion_dot,
         mean_motion_ddot=None if tle is None else tle.mean_motion_ddot,
+        mean_element_theory=md.mean_element_theory,
     )
 
 
