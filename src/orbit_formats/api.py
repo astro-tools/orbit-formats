@@ -22,7 +22,7 @@ from pathlib import Path
 from orbit_formats.canonical.attitude import Attitude
 from orbit_formats.canonical.base import Canonical
 from orbit_formats.canonical.conjunction import Conjunction
-from orbit_formats.canonical.elements import MeanElementSet
+from orbit_formats.canonical.elements import MeanElementSet, ensure_convertible_to_mean_format
 from orbit_formats.canonical.ephemeris import Ephemeris
 from orbit_formats.canonical.state import StateVector
 from orbit_formats.canonical.tracking import Tracking
@@ -128,6 +128,11 @@ def convert(
     """
     target = normalize_format(to)
     obj = source if isinstance(source, Canonical) else read(source, format=format)
+    if isinstance(obj, MeanElementSet):
+        # Same-form but theory-incompatible (a GNSS broadcast set to a TLE / OMM) is refused
+        # here, before the form-keyed pass-through would relabel elements that mean different
+        # things; see the conversion-capability matrix.
+        ensure_convertible_to_mean_format(obj, target)
     source_form = _form_of(obj)
     target_form = canonical_form(target)
     # The conversion graph owns the routing decision: it resolves the target frame (a no-op

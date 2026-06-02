@@ -17,6 +17,7 @@ __all__ = [
     "AmbiguousFormatError",
     "FormatDetectionError",
     "FrameRotationUnsupportedError",
+    "IncompatibleMeanElementTheoryError",
     "MalformedSourceError",
     "MissingOptionalDependencyError",
     "OrbitFormatsError",
@@ -80,6 +81,35 @@ class UnsupportedConversionError(OrbitFormatsError):
         super().__init__(
             f"no conversion path from a {source_form} to {target_format!r} "
             f"(which expects a {target_form}); only same-form conversion is supported"
+        )
+
+
+class IncompatibleMeanElementTheoryError(UnsupportedConversionError):
+    """A mean-element set whose theory the target mean-element format cannot represent.
+
+    Source and target share the ``mean-elements`` canonical form, so the form-keyed graph
+    would pass the object straight through — but the *theory* behind the elements differs.
+    A GNSS broadcast-navigation set (quasi-Keplerian parameters referenced to the time of
+    ephemeris in an Earth-fixed datum, evaluated by the constellation's user algorithm) is
+    not an SGP4/TEME mean-element set: writing it as a TLE or OMM would relabel numbers that
+    mean different things. A faithful conversion would have to propagate the broadcast model
+    and refit SGP4 elements — a propagation plus an orbit fit, both out of scope — so the
+    conversion is refused rather than producing a syntactically valid but physically wrong
+    message. ``source_theory`` is the source set's theory; ``target_format`` the refused
+    target. Subclasses :class:`UnsupportedConversionError`, so an existing
+    ``except UnsupportedConversionError`` still catches it.
+    """
+
+    def __init__(self, source_theory: str, target_format: str) -> None:
+        self.source_theory = source_theory
+        self.source_form = "mean-elements"
+        self.target_format = target_format
+        self.target_form = "mean-elements"
+        OrbitFormatsError.__init__(
+            self,
+            f"a {source_theory!r} mean-element set cannot be converted to {target_format!r}: "
+            f"that format expects SGP4/TEME mean elements, and reconciling broadcast elements "
+            "with the SGP4 theory needs a propagation and an orbit fit, which are out of scope",
         )
 
 

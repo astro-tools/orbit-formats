@@ -19,7 +19,7 @@ from typing import ClassVar
 import numpy as np
 from sgp4.api import Satrec
 
-from orbit_formats.canonical.elements import MeanElementSet
+from orbit_formats.canonical.elements import SGP4_MEAN_ELEMENT_THEORY, MeanElementSet
 from orbit_formats.canonical.fidelity import FidelityModel
 from orbit_formats.canonical.metadata import Metadata, Provenance
 from orbit_formats.canonical.state import StateVector
@@ -155,6 +155,7 @@ def read_tle(source: Source) -> MeanElementSet:
         bstar=float(satrec.bstar),
         mean_motion_dot=float(satrec.ndot) * _REV_DAY_PER_RAD_MIN * _MIN_PER_DAY,
         mean_motion_ddot=float(satrec.nddot) * _REV_DAY_PER_RAD_MIN * _MIN_PER_DAY * _MIN_PER_DAY,
+        mean_element_theory=SGP4_MEAN_ELEMENT_THEORY,
     )
 
 

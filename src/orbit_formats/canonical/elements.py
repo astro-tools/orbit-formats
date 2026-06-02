@@ -9,8 +9,25 @@ import numpy as np
 import pandas as pd
 
 from orbit_formats.canonical.base import Canonical, apply_spine_attrs, metadata_from_attrs
+from orbit_formats.errors import IncompatibleMeanElementTheoryError
 
-__all__ = ["MeanElementSet"]
+__all__ = [
+    "BROADCAST_MEAN_ELEMENT_THEORY",
+    "SGP4_MEAN_ELEMENT_THEORY",
+    "MeanElementSet",
+    "ensure_convertible_to_mean_format",
+]
+
+# Named mean-element theories carried on ``MeanElementSet.mean_element_theory``. ``SGP4`` is
+# the theory a TLE / OMM mean set obeys; ``GNSS broadcast`` is the quasi-Keplerian broadcast
+# parameterisation a RINEX navigation record carries (a different theory in an Earth-fixed
+# frame). The pair drives :func:`ensure_convertible_to_mean_format`.
+SGP4_MEAN_ELEMENT_THEORY = "SGP4"
+BROADCAST_MEAN_ELEMENT_THEORY = "GNSS broadcast"
+
+# The writable mean-element formats, which are all SGP4 / TEME mean-element formats. A
+# broadcast mean set cannot be written as one of these without a propagate-and-refit.
+_SGP4_MEAN_ELEMENT_FORMATS = frozenset({"tle", "ccsds-omm"})
 
 # Column names for the one-row mean-element projection. This is a different canonical
 # category from the Cartesian state series, so it deliberately does not share the
@@ -40,6 +57,13 @@ class MeanElementSet(Canonical):
     Keplerian mean set leaves them ``None``. TLE-text specifics (line numbers, checksums,
     classification) live on the ``source_native`` fidelity model, and the NORAD id rides
     ``metadata.object_id``.
+
+    ``mean_element_theory`` records *which* mean-element theory produced the elements —
+    :data:`SGP4_MEAN_ELEMENT_THEORY` for a TLE / OMM, :data:`BROADCAST_MEAN_ELEMENT_THEORY`
+    for a RINEX broadcast record, ``None`` when unknown. It is a semantic provenance tag, not
+    part of the numeric payload: it is excluded from equality and from the DataFrame
+    projection (like ``source_native`` and the off-spine metadata), and it gates conversion
+    to the SGP4 mean-element formats via :func:`ensure_convertible_to_mean_format`.
     """
 
     epoch: np.datetime64
@@ -52,6 +76,7 @@ class MeanElementSet(Canonical):
     bstar: float | None = None
     mean_motion_dot: float | None = None
     mean_motion_ddot: float | None = None
+    mean_element_theory: str | None = None
 
     def __post_init__(self) -> None:
         self.epoch = self.epoch.astype("datetime64[ns]")
@@ -115,6 +140,23 @@ class MeanElementSet(Canonical):
             mean_motion_dot=_optional_float(row["MeanMotionDot"]),
             mean_motion_ddot=_optional_float(row["MeanMotionDdot"]),
         )
+
+
+def ensure_convertible_to_mean_format(meanset: MeanElementSet, target_format: str) -> None:
+    """Refuse converting a GNSS broadcast mean set to an SGP4 mean-element format.
+
+    TLE and OMM are SGP4 / TEME mean-element formats. A broadcast set
+    (:data:`BROADCAST_MEAN_ELEMENT_THEORY`) shares the ``mean-elements`` form but a different
+    theory and an Earth-fixed frame, so the form-keyed pass-through would relabel numbers that
+    mean different things. Raises :class:`~orbit_formats.errors.IncompatibleMeanElementTheoryError`
+    in that case; a no-op for any other (theory, target) pair, including same-theory or
+    untagged sets and non-SGP4 targets.
+    """
+    if (
+        target_format in _SGP4_MEAN_ELEMENT_FORMATS
+        and meanset.mean_element_theory == BROADCAST_MEAN_ELEMENT_THEORY
+    ):
+        raise IncompatibleMeanElementTheoryError(meanset.mean_element_theory, target_format)
 
 
 def _optional_float(value: Any) -> float | None:

@@ -23,7 +23,7 @@ import math
 import numpy as np
 
 from orbit_formats.canonical.base import Canonical
-from orbit_formats.canonical.elements import MeanElementSet
+from orbit_formats.canonical.elements import MeanElementSet, ensure_convertible_to_mean_format
 from orbit_formats.errors import UnsupportedConversionError
 from orbit_formats.readers.ccsds_omm import OmmFile, OmmTleParameters
 from orbit_formats.readers.tle import TleRecord
@@ -47,6 +47,7 @@ def write_tle(obj: Canonical, suffix: str | None = None) -> bytes:
     del suffix
     if not isinstance(obj, MeanElementSet):
         raise UnsupportedConversionError(type(obj).__name__, "tle", "mean-elements")
+    ensure_convertible_to_mean_format(obj, "tle")
     native = obj.source_native
     if isinstance(native, TleRecord):
         return _echo(native)

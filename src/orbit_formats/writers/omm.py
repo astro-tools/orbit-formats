@@ -22,7 +22,7 @@ from __future__ import annotations
 from typing import Literal
 
 from orbit_formats.canonical.base import Canonical
-from orbit_formats.canonical.elements import MeanElementSet
+from orbit_formats.canonical.elements import MeanElementSet, ensure_convertible_to_mean_format
 from orbit_formats.errors import UnsupportedConversionError
 from orbit_formats.readers.ccsds_omm import (
     _COVARIANCE_KEYS,
@@ -62,6 +62,7 @@ def write_omm(obj: Canonical, suffix: str | None = None) -> bytes:
     """
     if not isinstance(obj, MeanElementSet):
         raise UnsupportedConversionError(type(obj).__name__, "ccsds-omm", "mean-elements")
+    ensure_convertible_to_mean_format(obj, "ccsds-omm")
     requested = _notation_from_suffix(suffix)
     native = obj.source_native
     if isinstance(native, OmmFile):

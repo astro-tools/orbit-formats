@@ -16,12 +16,14 @@ fidelity model rather than dropped.
 | GMAT report | `gmat-report` | ✓ | — | ephemeris / state |
 | STK ephemeris | `stk-ephemeris` | ✓ | ✓ | ephemeris |
 | SP3 (SP3-c / SP3-d) | `sp3` | ✓ | — | ephemeris |
+| RINEX navigation (3.x) | `rinex-nav` | ✓ | — | mean-element set / state |
 | CCSDS combined NDM (KVN + XML) | `ccsds-ndm` | ✓ | ✓ | aggregate of NDM messages |
 
 TLE and OMM share the **mean-element set** canonical form, so they convert into each other:
-read a TLE and write an OMM, or read an OMM and write a TLE. SPICE SPK and RINEX navigation are
-recognised by detection but not yet read or written; a `read` of one raises
-`UnsupportedFormatError`. They land in later versions.
+read a TLE and write an OMM, or read an OMM and write a TLE. A RINEX-navigation mean set is
+*also* in the mean-element form, but it carries GNSS **broadcast** elements rather than SGP4
+elements, so it does **not** convert to a TLE or OMM — see [RINEX navigation](#rinex-navigation-3x-rinex-nav)
+below.
 
 **CCSDS notation — KVN and XML.** The OEM, OMM, and OPM each read and write in both CCSDS
 notations under a single format id. The two notations are held at **parity**: KVN and XML parse
@@ -213,6 +215,46 @@ writer, so a write to `.sp3` raises `UnsupportedFormatError`.
   or the `.sp3` extension. The reader parses SP3-c and SP3-d; another version, a malformed
   header, a record with too few columns or a non-numeric value, or a satellite whose record
   count disagrees with the epoch count raise `MalformedSourceError`.
+
+## RINEX navigation (3.x) — `rinex-nav`
+
+A RINEX **navigation** file (the GNSS *broadcast ephemeris*) reads into the canonical form. It
+is a fixed-layout text message: a header closed by `END OF HEADER`, then a sequence of
+per-satellite records — an epoch line (satellite id, the time of clock `Toc`, and the SV-clock
+polynomial terms) followed by the constellation's broadcast-orbit lines. RINEX navigation is
+**read-only** — there is no writer, so a write to `.rnx` raises `UnsupportedFormatError`.
+
+- **Two canonical categories, by constellation.** The Keplerian constellations — GPS, Galileo,
+  BeiDou, QZSS, and NavIC — carry quasi-Keplerian parameters and read into a `MeanElementSet`:
+  the headline mean elements, with the **mean motion derived** from `sqrt(A)` and `Delta n`
+  through the constellation's gravitational parameter, converted to rev/day. The Cartesian
+  constellations — GLONASS and SBAS — carry an Earth-fixed position / velocity / acceleration
+  and read into a `StateVector` (position and velocity; the acceleration rides on
+  `source_native`).
+- **Frame and time.** Tagged **ITRF** (RINEX navigation is Earth-centred, Earth-fixed; the
+  specific datum — WGS-84, PZ-90, GTRF, CGCS2000 — follows from the satellite id and stays on
+  the fidelity model) with **Earth** as the central body. The time scale is the constellation's
+  epoch time system when the canonical spine carries it — GPS → `GPS`, GLONASS → `UTC`; Galileo
+  / BeiDou / QZSS / NavIC system time the spine does not model leaves `time_scale` unset, the
+  same conservative rule SP3 follows.
+- **Broadcast, not SGP4.** A RINEX mean set is tagged with the **broadcast** mean-element
+  theory. Broadcast elements are referenced to the time of ephemeris in an Earth-fixed datum
+  and evaluated by the constellation's user algorithm — they are *not* SGP4 / TEME elements.
+  Converting one to a TLE or OMM is therefore refused with `IncompatibleMeanElementTheoryError`
+  (a subclass of `UnsupportedConversionError`): a faithful conversion would need to propagate
+  the broadcast model and refit SGP4 elements — a propagation plus an orbit fit, out of scope —
+  not relabel the numbers. See [Conversion matrix](conversion-matrix.md).
+- **Multi-record → a record set.** `read` returns the **first** record as its canonical object;
+  the whole file is `result.source_native`, and `result.source_native.to_canonical()` returns
+  every record's canonical object in file order. No record is dropped.
+- **Preserved on `source_native`, not in the canonical form:** the SV-clock polynomial, the
+  harmonic corrections (`Cuc` … `Cis`), `Toe` and the broadcast week, the satellite health,
+  the group delays, and every other broadcast-orbit field — kept verbatim on each record, with
+  named access via `record.field(...)` for the orbit-determining fields.
+- **Detection:** the `RINEX VERSION / TYPE` header label, or the `.rnx` / `.nav` /
+  `.NNn` (version-2 year-and-system) extension. The reader parses RINEX **3.x**; RINEX 2.x or
+  4.x, a missing or malformed header, an unknown constellation, a truncated record, or a
+  non-numeric field raise `MalformedSourceError`.
 
 ## CCSDS combined NDM (KVN + XML) — `ccsds-ndm`
 

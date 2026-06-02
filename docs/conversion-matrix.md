@@ -11,9 +11,14 @@ rather than as a bespoke format pair:
 
 | Form | Category type | Formats |
 |------|---------------|---------|
-| mean-elements | `MeanElementSet` | `tle`, `ccsds-omm` |
+| mean-elements | `MeanElementSet` | `tle`, `ccsds-omm`, `rinex-nav` (read-only, GNSS broadcast — GPS / Galileo / BeiDou / QZSS / NavIC) |
 | ephemeris | `Ephemeris` | `ccsds-oem`, `stk-ephemeris`, `sp3` (read-only), `gmat-report` (≥2 rows) |
-| state | `StateVector` | `ccsds-opm`, `gmat-report` (1 row) |
+| state | `StateVector` | `ccsds-opm`, `gmat-report` (1 row), `rinex-nav` (read-only, GLONASS / SBAS) |
+
+A format sharing a form does **not** always convert into the others: a `rinex-nav` mean set is
+in the mean-element form but carries *broadcast* elements, a different theory in an Earth-fixed
+frame, so it is refused conversion to the SGP4 mean-element formats (`tle`, `ccsds-omm`) — see
+[Mean-element targets](#mean-element-targets-tle-ccsds-omm) below.
 
 A conversion whose source is already in the target's preferred form is a **pass-through**: the
 canonical object is handed straight to the target's writer, and a same-format write stays
@@ -39,6 +44,7 @@ the CLI) to rotate the Cartesian state into another frame; see
 | `ccsds-oem` | `Ephemeris` |
 | `stk-ephemeris` | `Ephemeris` |
 | `sp3` | `Ephemeris` — the first satellite (ITRF, SP3 time system); the full per-satellite set on `source_native` |
+| `rinex-nav` | `MeanElementSet` (GPS / Galileo / BeiDou / QZSS / NavIC broadcast, ITRF, **broadcast** theory) or `StateVector` (GLONASS / SBAS, ITRF) — the first record; the full record set on `source_native.to_canonical()` |
 | `gmat-report` | `Ephemeris` (≥2 rows) or `StateVector` (one row) |
 | `ccsds-ndm` | `Combined` — an ordered tuple of the member messages, each read into its own type |
 
@@ -66,6 +72,7 @@ content is identical either way.
 |--------|-------|-------------|
 | **TLE** | ✅ **lossless** — the source lines are echoed verbatim (byte-identical for a normalised TLE) | ✅ **lossless** — the TLE → OMM map enriches the message with the TLE's identifiers and drag terms; a nameless 2-line TLE warns for the OMM-required `OBJECT_NAME` |
 | **CCSDS OMM** | ⚠️ **lossy** — element-level lossless (a re-read reproduces the same mean elements to the TLE's representable precision), but warns for each TLE identifier the OMM does not carry (`NORAD_CAT_ID`, `ELEMENT_SET_NO`, the international designator) | ✅ **lossless** — byte-identical with `retain_source=True`, otherwise content-lossless (spacecraft, covariance, and user-defined blocks preserved) |
+| **RINEX broadcast** (`rinex-nav`) | ❌ **unsupported** — a broadcast mean set is the *same form* but a different theory: its elements are Toe-referenced and Earth-fixed, not SGP4 / TEME. Reconciling them needs a propagation plus an orbit fit, out of scope; raises `IncompatibleMeanElementTheoryError` (a subclass of `UnsupportedConversionError`) | ❌ **unsupported** — same |
 | **ephemeris / state source** | ❌ **unsupported** — a Cartesian state or series to a mean-element set is an orbit fit, out of scope; raises `UnsupportedConversionError` | ❌ **unsupported** — same: a mean-element set cannot be derived from a state without an orbit fit |
 
 ### State target — CCSDS OPM
