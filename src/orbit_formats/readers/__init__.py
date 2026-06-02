@@ -21,6 +21,7 @@ from orbit_formats.readers import (  # noqa: F401
     rinex_nav,
     sp3,
     spk,
+    stk_attitude,
     stk_ephemeris,
     tle,
 )
