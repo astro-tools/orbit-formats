@@ -35,7 +35,7 @@ from orbit_formats import (
     read,
     write,
 )
-from orbit_formats._spice import J2000_TDB, datetime64_to_et
+from orbit_formats._spice import J2000_TDB
 from orbit_formats.readers.spk import SpkFile, read_spk
 from orbit_formats.registry import get_reader, get_writer
 from orbit_formats.writers.spk import write_spk
@@ -207,23 +207,9 @@ def test_round_trip_preserves_every_segment() -> None:
         np.testing.assert_allclose(roundtripped.epochs_et, original.epochs_et)
 
 
-# --- writer: independent SPICE cross-check ---------------------------------------------
-
-
-def test_written_states_match_spice_evaluation(tmp_path: Path) -> None:
-    """SPICE's own evaluator reads back the states we wrote — independent of our DAF parser."""
-    eph = read(GOLDEN.read_bytes())
-    assert isinstance(eph, Ephemeris)
-    kernel = tmp_path / "xcheck.bsp"
-    kernel.write_bytes(write_spk(eph))
-    try:
-        spice.furnsh(str(kernel))
-        for index, et in enumerate(datetime64_to_et(eph.epochs)):
-            state, _light_time = spice.spkgeo(-999, float(et), "J2000", 399)
-            np.testing.assert_allclose(state[:3], eph.positions[index], rtol=0, atol=1e-6)
-            np.testing.assert_allclose(state[3:], eph.velocities[index], rtol=0, atol=1e-9)
-    finally:
-        spice.unload(str(kernel))
+# The independent SPICE-evaluator cross-check (SPICE's own spkgeo reads back the states we
+# wrote) lives in test_spk_oracle.py, where it runs as a standing external-cross-validation
+# CI job alongside the Orekit oracle, mirroring the test_ccsds_*_oracle.py layout.
 
 
 # --- writer: synthesised / cross-format ------------------------------------------------
