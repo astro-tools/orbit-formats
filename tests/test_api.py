@@ -122,7 +122,7 @@ def test_write_without_a_registered_writer_is_unsupported(
     isolated_registry: None, tmp_path: Path
 ) -> None:
     # A writable format whose writer is missing hits the "no writer registered" branch
-    # (distinct from a read-only target like sp3 / rinex-nav). Drop spk's writer inside the
+    # (distinct from a read-only target like rinex-nav / gmat-report). Drop spk's writer inside the
     # isolated registry — the fixture restores it afterwards — to exercise that branch.
     registry_module.get_writer("spk")  # force plugin load so the removal below sticks
     registry_module._WRITERS.pop("spk", None)

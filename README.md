@@ -9,11 +9,11 @@
 Lossless round-trip across orbital state-vector and ephemeris formats.
 
 > **Status:** orbit-formats reads and writes the full CCSDS NDM family (OEM, OMM, OPM, OCM, AEM,
-> APM, CDM, TDM, and the combined NDM, in KVN and XML), TLE, STK ephemeris, and SPICE SPK (behind
-> the `[spk]` extra); additionally reads SP3, GMAT report, and RINEX navigation; rotates Cartesian
+> APM, CDM, TDM, and the combined NDM, in KVN and XML), TLE, STK ephemeris, SP3, and SPICE SPK
+> (behind the `[spk]` extra); additionally reads GMAT report and RINEX navigation; rotates Cartesian
 > states across TEME / EME2000 / GCRF / ICRF / ITRF; and round-trips its writable formats
 > losslessly, cross-validated against Orekit and SPICE. Vendor and alternative encodings (STK
-> attitude, the Celestrak / Space-Track OMM encodings, an SP3 writer) follow in later versions.
+> attitude, the Celestrak / Space-Track OMM encodings) follow in later versions.
 > See the [changelog](CHANGELOG.md) for released functionality.
 
 ## What this is
@@ -69,7 +69,7 @@ and the
 | CCSDS combined NDM (KVN + XML) | ✅ | ✅ | aggregate of NDM messages |
 | GMAT report | ✅ | — | ephemeris / state |
 | STK ephemeris | ✅ | ✅ | ephemeris |
-| SP3 (SP3-c / SP3-d) | ✅ | — | ephemeris |
+| SP3 (SP3-c / SP3-d) | ✅ | ✅ | ephemeris |
 | RINEX navigation (3.x) | ✅ | — | mean-element set / state |
 | SPK (`[spk]` extra) | ✅ | ✅ | ephemeris |
 

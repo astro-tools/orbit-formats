@@ -1,5 +1,5 @@
 """The SP3 reader: parsing, the canonical adaptation, the per-satellite set, detection,
-read-only enforcement, and the no-silent-loss contract.
+writer registration, and the no-silent-loss contract.
 
 The committed ``sample_sp3c.sp3`` (SP3-c, position+velocity) and ``sample_sp3d.sp3``
 (SP3-d, position only) drive the definition-of-done read; inline byte samples cover the
@@ -18,10 +18,8 @@ import pytest
 from orbit_formats import (
     Ephemeris,
     MalformedSourceError,
-    UnsupportedFormatError,
     detect_format,
     read,
-    write,
 )
 from orbit_formats.readers.sp3 import Sp3File, read_sp3
 from orbit_formats.registry import get_reader, get_writer
@@ -160,15 +158,11 @@ def test_detection_and_format_override() -> None:
     assert isinstance(eph, Ephemeris)
 
 
-def test_sp3_registers_a_reader_but_no_writer() -> None:
+def test_sp3_registers_a_reader_and_a_writer() -> None:
+    # SP3 gained a writer (the read-only milestone is complete); the dedicated writer tests
+    # live in test_sp3_writer.py.
     assert get_reader("sp3") is not None
-    assert get_writer("sp3") is None
-
-
-def test_writing_sp3_is_rejected_as_read_only(tmp_path: Path) -> None:
-    eph = read(SP3C)
-    with pytest.raises(UnsupportedFormatError, match="read-only"):
-        write(eph, tmp_path / "out.sp3")
+    assert get_writer("sp3") is not None
 
 
 # --- the no-silent-loss contract -------------------------------------------------------

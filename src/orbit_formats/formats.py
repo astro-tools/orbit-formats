@@ -273,7 +273,7 @@ FORMATS: tuple[FormatSpec, ...] = (
         "ccsds-ocm", "ephemeris", (".ocm",), signature=_ccsds_signature("CCSDS_OCM_VERS", "ocm")
     ),
     FormatSpec("ccsds-ndm", "ndm", (".ndm",), signature=_sig_ndm),
-    FormatSpec("sp3", "ephemeris", (".sp3",), writable=False, signature=_sig_sp3),
+    FormatSpec("sp3", "ephemeris", (".sp3",), signature=_sig_sp3),
     FormatSpec("stk-ephemeris", "ephemeris", (".e", ".ephem"), signature=_sig_stk),
     FormatSpec("stk-attitude", "attitude", (".a",), signature=_sig_stk_attitude),
     FormatSpec("gmat-report", "ephemeris", (".report",), writable=False, signature=None),
