@@ -18,20 +18,31 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from orbit_formats.convert.capabilities import (
+    ConversionCapability,
+    ConversionKind,
+    capability_matrix,
+    conversion_capability,
+)
 from orbit_formats.convert.elements import (
     cartesian_to_keplerian,
     gravitational_parameter,
     keplerian_to_cartesian,
 )
 from orbit_formats.convert.frames import normalize_frame, rotate_state, transform_available
-from orbit_formats.convert.graph import apply_frame, route
+from orbit_formats.convert.graph import apply_frame, conversion_edges, route
 
 if TYPE_CHECKING:
     from orbit_formats.convert.time import convert_time_scale
 
 __all__ = [
+    "ConversionCapability",
+    "ConversionKind",
     "apply_frame",
+    "capability_matrix",
     "cartesian_to_keplerian",
+    "conversion_capability",
+    "conversion_edges",
     "convert_time_scale",
     "gravitational_parameter",
     "keplerian_to_cartesian",

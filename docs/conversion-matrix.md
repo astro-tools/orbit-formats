@@ -1,149 +1,200 @@
 # Conversion-capability matrix
 
-Which conversions orbit-formats supports, and what each costs. The matrix is the contract: a
-cell is either lossless, lossy-with-a-named-reason, or unsupported-with-a-reason — never a
-silent guess.
+Which conversions orbit-formats supports across the full format set, and what each costs. The
+matrix is the contract: a cell is either lossless, lossy-with-a-named-reason, or
+unsupported-with-a-reason — never a silent guess. The supported/unsupported split is derived from
+the code (`orbit_formats.conversion_capability`) and a test asserts this page agrees with it, so
+the published matrix cannot drift from the implementation.
 
 ## How routing works
 
-Every format declares a preferred **canonical form**. A conversion routes through that form
-rather than as a bespoke format pair:
+Every format declares a preferred **canonical form**. A conversion routes through that form rather
+than as a bespoke format pair:
 
 | Form | Category type | Formats |
 |------|---------------|---------|
-| mean-elements | `MeanElementSet` | `tle`, `ccsds-omm`, `rinex-nav` (read-only, GNSS broadcast — GPS / Galileo / BeiDou / QZSS / NavIC) |
-| ephemeris | `Ephemeris` | `ccsds-oem`, `stk-ephemeris`, `sp3` (read-only), `gmat-report` (≥2 rows) |
-| state | `StateVector` | `ccsds-opm`, `gmat-report` (1 row), `rinex-nav` (read-only, GLONASS / SBAS) |
+| mean-elements | `MeanElementSet` | `tle`, `ccsds-omm`, `rinex-nav` (read-only — GNSS broadcast: GPS / Galileo / BeiDou / QZSS / NavIC) |
+| state | `StateVector` | `ccsds-opm`, `gmat-report` (1 row), `rinex-nav` (read-only — GLONASS / SBAS) |
+| ephemeris | `Ephemeris` | `ccsds-oem`, `stk-ephemeris`, `ccsds-ocm`, `spk` (read/write); `sp3`, `gmat-report` (≥2 rows) (read-only) |
+| attitude | `Attitude` | `ccsds-aem` (history), `ccsds-apm` (single attitude) |
+| conjunction | `Conjunction` | `ccsds-cdm` |
+| tracking | `Tracking` | `ccsds-tdm` |
+| ndm (aggregate) | `Combined` | `ccsds-ndm` |
 
-A format sharing a form does **not** always convert into the others: a `rinex-nav` mean set is
-in the mean-element form but carries *broadcast* elements, a different theory in an Earth-fixed
-frame, so it is refused conversion to the SGP4 mean-element formats (`tle`, `ccsds-omm`) — see
-[Mean-element targets](#mean-element-targets-tle-ccsds-omm) below.
+A conversion whose source is already in the target's preferred form is a **same-form
+pass-through**: the canonical object is handed straight to the target's writer. Two formats that
+share a form therefore convert into each other — TLE ↔ OMM (mean-elements), OEM ↔ STK ↔ OCM ↔ SPK
+(ephemeris), AEM ↔ APM (attitude) — carrying whatever the canonical object holds; the only cost is
+whatever the *target writer* cannot express, which it names in a warning. A same-**format** write
+(OEM → OEM) additionally recovers full fidelity from `source_native`.
 
-A conversion whose source is already in the target's preferred form is a **pass-through**: the
-canonical object is handed straight to the target's writer, and a same-format write stays
-lossless via `source_native`. Two formats that share a form therefore convert into each
-other — TLE ↔ OMM (mean-elements), OEM ↔ STK (ephemeris) — with no transform between them; the
-only cost is whatever the *target writer* cannot express.
+Two **cross-form** bridges are propagator-free and so are implemented:
 
-A conversion that would have to **cross forms** — a mean-element set to an ephemeris, a single
-state to a series — needs a model step (a propagation or an orbit fit) that is out of scope, so
-it is refused with `UnsupportedConversionError` rather than guessed.
+- **a single state ↔ a series.** A `StateVector` embeds as a length-1 `Ephemeris` (lossless), and an
+  `Ephemeris` collapses to the `StateVector` at its first epoch (lossless for a one-sample series;
+  for a longer one it warns, naming the dropped epochs). So `ccsds-opm` ↔ `ccsds-oem` / `ccsds-ocm`
+  / `stk-ephemeris` convert both ways. The exception is `spk`: an SPK segment is an interpolatable
+  trajectory of at least two states, so a single state cannot be written as one (it raises).
+- **an attitude history ↔ a single attitude.** APM (single) embeds as a one-record AEM (lossless);
+  an AEM history collapses to the first record for an APM, warning for the dropped records.
 
-Orthogonal to the form is the **reference frame**. Pass `frame=` to `convert` (or `--frame` to
-the CLI) to rotate the Cartesian state into another frame; see
-[Frame rotation](#frame-rotation) below.
+A conversion that would have to cross forms **through a model step** — a mean-element set to a
+state or series (an SGP4 propagation), or a state/series to a mean-element set (an orbit fit) — is
+out of scope and refused with `UnsupportedConversionError` rather than guessed. A `rinex-nav`
+broadcast set additionally cannot become a TLE / OMM even though both are the mean-element form: it
+carries a different *theory* (Toe-referenced, Earth-fixed), so it raises
+`IncompatibleMeanElementTheoryError`. The `ccsds-ndm` aggregate carries no single form and never
+converts — read it, work with its members, and write it back.
 
-## Reading
+Orthogonal to the form is the **reference frame**. Pass `frame=` to `convert` (or `--frame` to the
+CLI) to rotate the Cartesian state into another frame; see [Frame rotation](#frame-rotation).
 
-| Source format | Reads into |
-|---------------|------------|
-| `tle` | `MeanElementSet` (mean elements, TEME / UTC) |
-| `ccsds-omm` | `MeanElementSet` |
-| `ccsds-opm` | `StateVector` |
-| `ccsds-oem` | `Ephemeris` |
-| `stk-ephemeris` | `Ephemeris` |
-| `sp3` | `Ephemeris` — the first satellite (ITRF, SP3 time system); the full per-satellite set on `source_native` |
-| `rinex-nav` | `MeanElementSet` (GPS / Galileo / BeiDou / QZSS / NavIC broadcast, ITRF, **broadcast** theory) or `StateVector` (GLONASS / SBAS, ITRF) — the first record; the full record set on `source_native.to_canonical()` |
-| `gmat-report` | `Ephemeris` (≥2 rows) or `StateVector` (one row) |
-| `ccsds-ndm` | `Combined` — an ordered tuple of the member messages, each read into its own type |
+## The matrix
 
-A `ccsds-ndm` aggregate is read and written but never **converted**: it carries no single
-canonical form, so it composes member messages rather than mapping between forms. `convert` to
-or from `ccsds-ndm` raises `UnsupportedConversionError`; read it, work with its members, and
-write it back.
+Rows are the source format (anything readable); columns are the target format (only the writable
+formats can be a conversion destination). **✅** lossless · **⚠️** lossy — warns and names what it
+dropped · **❌** unsupported — raises. ✅ / ⚠️ are shown for a representative complete source of the
+row format; a sparser file may warn where the table shows ✅. The guaranteed contract is the
+✅ ∪ ⚠️ versus ❌ split (possible versus refused) and that no supported conversion ever drops a
+canonical field silently — every ⚠️ names what it dropped.
 
-## Writing
+<!-- capability-matrix: this table is asserted against orbit_formats.conversion_capability by
+     tests/test_conversion_matrix.py::test_doc_matrix_matches_capabilities — keep it in sync. -->
 
-A source already in the target's form is a same-form pass-through, so a same-format write
-recovers full fidelity via `source_native`. Cross-format conversion within a form carries what
-the **canonical** object holds — for an ephemeris the states, frame, central body, and
-interpolation — while format-specific extras a reader parks on `source_native` (an OEM's
-covariance, an STK file's full meta, an OPM's maneuvers) are not carried across formats, since
-the canonical form never held them.
+| Source ╲ Target | `tle` | `ccsds-omm` | `ccsds-opm` | `ccsds-oem` | `stk-ephemeris` | `ccsds-ocm` | `spk` | `ccsds-aem` | `ccsds-apm` | `ccsds-cdm` | `ccsds-tdm` | `ccsds-ndm` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `tle` | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-omm` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `rinex-nav` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-opm` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-oem` | ❌ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `stk-ephemeris` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `sp3` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `gmat-report` | ❌ | ❌ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-ocm` | ❌ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `spk` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-aem` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ⚠️ | ❌ | ❌ | ❌ |
+| `ccsds-apm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `ccsds-cdm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `ccsds-tdm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| `ccsds-ndm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
-The tables below are grouped by the target's form. CCSDS OEM, OMM, and OPM additionally select
-KVN vs XML from the destination extension (`.oem` / `.omm` / `.opm` → KVN, `.xml` → XML); the
-content is identical either way.
+`rinex-nav` and `gmat-report` are read into the form their content dictates, and the row above
+shows that form's row: `rinex-nav` reads a GNSS *broadcast* mean set (the row shown — refused into
+the SGP4 mean formats by theory, and into every other form by a missing model step) or a
+GLONASS / SBAS `StateVector`; `gmat-report` reads an `Ephemeris` (≥2 rows, the row shown) or a
+single-row `StateVector`. A `rinex-nav` GLONASS state or a one-row `gmat-report` state therefore
+converts like the `ccsds-opm` row (into `ccsds-opm` / `ccsds-oem` / `stk-ephemeris` / `ccsds-ocm`).
 
-### Mean-element targets — TLE, CCSDS OMM
+## What each conversion carries
 
-| Source | → TLE | → CCSDS OMM |
-|--------|-------|-------------|
-| **TLE** | ✅ **lossless** — the source lines are echoed verbatim (byte-identical for a normalised TLE) | ✅ **lossless** — the TLE → OMM map enriches the message with the TLE's identifiers and drag terms; a nameless 2-line TLE warns for the OMM-required `OBJECT_NAME` |
-| **CCSDS OMM** | ⚠️ **lossy** — element-level lossless (a re-read reproduces the same mean elements to the TLE's representable precision), but warns for each TLE identifier the OMM does not carry (`NORAD_CAT_ID`, `ELEMENT_SET_NO`, the international designator) | ✅ **lossless** — byte-identical with `retain_source=True`, otherwise content-lossless (spacecraft, covariance, and user-defined blocks preserved) |
-| **RINEX broadcast** (`rinex-nav`) | ❌ **unsupported** — a broadcast mean set is the *same form* but a different theory: its elements are Toe-referenced and Earth-fixed, not SGP4 / TEME. Reconciling them needs a propagation plus an orbit fit, out of scope; raises `IncompatibleMeanElementTheoryError` (a subclass of `UnsupportedConversionError`) | ❌ **unsupported** — same |
-| **ephemeris / state source** | ❌ **unsupported** — a Cartesian state or series to a mean-element set is an orbit fit, out of scope; raises `UnsupportedConversionError` | ❌ **unsupported** — same: a mean-element set cannot be derived from a state without an orbit fit |
+### Mean-element targets — `tle`, `ccsds-omm`
 
-### State target — CCSDS OPM
+TLE ↔ OMM share the mean-element form. The mean elements and the NORAD identifiers cross over; a
+bare two-line TLE has no `OBJECT_NAME`, so writing it as an OMM (which requires one) warns and
+writes a placeholder. A `rinex-nav` broadcast set is the same form but a different theory and an
+Earth-fixed frame, so it is refused into both — `IncompatibleMeanElementTheoryError` (a subclass of
+`UnsupportedConversionError`). A state or ephemeris to a mean set is an orbit fit, out of scope.
 
-| Source | → CCSDS OPM |
-|--------|-------------|
-| **CCSDS OPM** | ✅ **lossless** — byte-identical with `retain_source=True`, otherwise content-lossless (the state, Keplerian, spacecraft, covariance, and maneuver blocks all preserved) |
-| **GMAT report** (1 row) | ⚠️ **lossy** — the Cartesian state crosses over, but each OPM-required metadata field the report does not state (`OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, and `REF_FRAME` / `TIME_SYSTEM` when the columns omit them) becomes a placeholder, each named by a warning |
-| **ephemeris / mean-element source** | ❌ **unsupported** — a series or a mean-element set to a single state crosses forms; raises `UnsupportedConversionError` |
+### State target — `ccsds-opm`
 
-### Ephemeris targets — CCSDS OEM, STK ephemeris
+A `ccsds-opm` round-trips losslessly. An ephemeris source (`ccsds-oem` / `stk-ephemeris` / `sp3` /
+`gmat-report` / `ccsds-ocm` / `spk`) collapses to the state at its **first epoch**; for a
+multi-sample series that warns, naming the dropped epochs (and any interpolation hint). A
+one-row `gmat-report` or a GLONASS `rinex-nav` reads directly as a state and round-trips like an
+OPM. A mean-element set to a state needs a propagation, out of scope.
 
-CCSDS OEM and STK ephemeris are the writable **ephemeris** targets.
+### Ephemeris targets — `ccsds-oem`, `stk-ephemeris`, `ccsds-ocm`, `spk`
 
-| Source | → CCSDS OEM | → STK ephemeris |
-|--------|-------------|-----------------|
-| **CCSDS OEM** | ✅ **lossless** — byte-identical with `retain_source=True`, otherwise content-lossless (every field, including covariance and acceleration, preserved) | ✅ **lossless** for the canonical ephemeris — states, frame, central body, and interpolation cross over (an OEM states all the `.e`-required fields) |
-| **STK ephemeris** | ⚠️ **lossy** — the states, frame, central body, and interpolation cross over, but the OEM-required `OBJECT_NAME` / `OBJECT_ID` an STK file does not carry become placeholders, each named by a warning | ✅ **lossless** — byte-identical with `retain_source=True`, otherwise content-lossless (banner, comments, every meta keyword, and acceleration preserved) |
-| **SP3** (first satellite) | ⚠️ **lossy** — the satellite's states, the ITRF frame, the Earth centre, and its id cross over; the OEM-required `OBJECT_ID` SP3 does not carry becomes a placeholder, named by a warning; the clock, accuracy codes, and the other satellites stay on `source_native` | ✅ **lossless** for the canonical ephemeris — the states, the ITRF frame, and the Earth centre cross over (SP3 states all the `.e`-required fields); the clock, accuracy codes, and the other satellites stay on `source_native` |
-| **GMAT report** (≥2 rows) | ⚠️ **lossy** — the OEM-required fields a report does not state (`OBJECT_ID`, `CENTER_NAME`) become placeholders, each named by a warning | ⚠️ **lossy** — the STK-required `CentralBody` a report does not state (and `CoordinateSystem`, when its columns omit the frame) becomes a placeholder, named by a warning |
-| **single-state source** (OPM, 1-row report) | ❌ **unsupported** — a single state reads as a `StateVector`; an ephemeris target expects a series, and bridging the two is not a conversion | ❌ **unsupported** — same |
-| **mean-element source** (TLE, OMM) | ❌ **unsupported** — a mean-element set to an ephemeris requires a propagation (SGP4), out of scope; raises `UnsupportedConversionError` | ❌ **unsupported** — same |
+These four share the ephemeris form, so they convert into one another carrying the states, frame,
+central body, and interpolation hint; format-specific extras a reader parks on `source_native` (an
+OEM's covariance, an OPM's maneuvers, SP3's clocks and other satellites) are not carried, since the
+canonical ephemeris never held them. Each target warns for the fields *it* requires that the
+canonical ephemeris does not supply:
 
-**Legend** — ✅ lossless · ⚠️ lossy, warns and names what was dropped · ❌ unsupported, raises.
+- **`ccsds-oem`** requires `OBJECT_NAME` and `OBJECT_ID`; an STK, SP3, or GMAT source that lacks
+  them gets placeholders, each named.
+- **`stk-ephemeris`** requires a `CentralBody` (and a coordinate system); a GMAT report that omits
+  them warns.
+- **`ccsds-ocm`** requires `TIME_SYSTEM`, an epoch, a centre, and a frame — fields any well-formed
+  ephemeris already carries, so it is usually lossless; a GMAT report missing the frame warns.
+- **`spk`** synthesises a type-9 segment and warns when a NAIF id, frame, or time scale cannot be
+  resolved. **A single state cannot be written as SPK** — an SPK segment is an interpolatable
+  trajectory of at least two states — so `ccsds-opm` → `spk` raises `UnsupportedConversionError`.
+
+A single state (`ccsds-opm`, a one-row report) embeds as a length-1 ephemeris, so it converts into
+`ccsds-oem` / `stk-ephemeris` / `ccsds-ocm` losslessly (those accept a one-sample ephemeris). A
+mean-element set to an ephemeris needs a propagation, out of scope.
+
+### Attitude targets — `ccsds-aem`, `ccsds-apm`
+
+AEM (a quaternion history) and APM (a single quaternion attitude) share the attitude form. APM →
+AEM writes a one-record history (lossless). AEM → APM keeps the **first** record and warns, naming
+the dropped records — an APM holds one attitude. A non-quaternion attitude (Euler, spin) cannot be
+written as an APM (representing it as a quaternion would be a representation conversion, out of
+scope) and raises.
+
+### Conjunction, tracking — `ccsds-cdm`, `ccsds-tdm`
+
+Each is its own form with a single writable format, so it round-trips to itself and nothing else: a
+conjunction is not an orbit and a tracking-data set is not a state, so there is no meaningful
+cross-form target.
+
+### The aggregate — `ccsds-ndm`
+
+The combined-NDM aggregate carries several member messages and no single canonical form, so it
+never participates in conversion: `convert` to or from `ccsds-ndm` raises
+`UnsupportedConversionError`. Read it, convert or inspect its members, and write it back.
 
 ## Frame rotation
 
-`convert` rotates the Cartesian state into a requested reference frame when you pass `frame=`
-(the CLI's `--frame`); omitted, the source frame is kept. The rotation is **lossless** — a
-rigid change of axes, computed through `astropy` (precession / nutation for the inertial
-frames, the IERS Earth-orientation tables and the Earth-rotation rate for the terrestrial
-ITRF), read hermetically with no network access. It drops the byte-lossless `source_native`
-handle, since the rotated state no longer matches the original bytes; the canonical content is
-exact.
+`convert` rotates the Cartesian state into a requested reference frame when you pass `frame=` (the
+CLI's `--frame`); omitted, the source frame is kept. The rotation is **lossless** — a rigid change
+of axes, computed through `astropy` (precession / nutation for the inertial frames, the IERS
+Earth-orientation tables and the Earth-rotation rate for the terrestrial ITRF), read hermetically
+with no network access. It drops the byte-lossless `source_native` handle, since the rotated state
+no longer matches the original bytes; the canonical content is exact.
 
 | Rotation | TEME | EME2000 / J2000 | GCRF | ICRF | ITRF |
 |----------|:----:|:---------------:|:----:|:----:|:----:|
 | **supported** | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-Any one of the five frames rotates into any other; **GCRF and ICRF are identical** by
-definition, so that pair is a no-op. The velocity is preserved by every rotation except across
-ITRF, where the Earth-rotation term genuinely changes it (the same physical state, on rotating
-axes).
+Any one of the five frames rotates into any other; **GCRF and ICRF are identical** by definition,
+so that pair is a no-op. The velocity is preserved by every rotation except across ITRF, where the
+Earth-rotation term genuinely changes it (the same physical state, on rotating axes).
 
 Out of scope:
 
 - **A frame outside the set**, on either side, raises `FrameRotationUnsupportedError` —
   orbit-formats does not guess an un-modelled rotation.
-- **A mean-element set** (a TLE or OMM) has no Cartesian state to rotate; requesting a frame on
-  one raises `FrameRotationUnsupportedError`. Its frame is TEME — tagged and preserved.
+- **A form with no Cartesian state** (a mean-element set, an attitude, a conjunction, a tracking
+  set) has nothing to rotate; requesting a frame on one raises `FrameRotationUnsupportedError`.
 
-## Reading the legend in code
+## Reading the matrix in code
+
+The table above is generated from the same code the converter uses; query it directly:
 
 ```python
-from orbit_formats import convert, read, write
+from orbit_formats import conversion_capability, capability_matrix, convert, read, write
 
-# ✅ lossless OEM round trip
-eph = read("orbit.oem", retain_source=True)
-write(eph, "copy.oem")                      # byte-identical
+# Is a conversion possible, and why?
+cap = conversion_capability("ccsds-opm", "spk")
+print(cap.supported, cap.kind.value, cap.reason)
+# False unsupported-degenerate 'spk' is an interpolatable trajectory of at least two states; ...
 
-# ✅ lossless TLE -> OMM (same mean-element form)
-write(convert("iss.tle", to="ccsds-omm"), "iss.omm")
+# The whole matrix as data:
+for cap in capability_matrix():
+    if cap.supported:
+        ...  # cap.source_format, cap.target_format, cap.kind
 
-# ✅ lossless frame rotation into J2000
-write(convert("orbit.oem", to="ccsds-oem", frame="J2000"), "j2000.oem")
+# ✅ lossless OEM round trip (byte-identical with retain_source=True)
+write(read("orbit.oem", retain_source=True), "copy.oem")
 
-# ⚠️ GMAT report -> OEM warns for the META the report omits, and still writes
-write(read("mission.report"), "mission.oem")
+# ⚠️ a single state embeds, then collapses back out of the series — the collapse warns
+state = convert("sat.oem", to="ccsds-opm")   # warns: kept the first epoch, dropped the rest
 
-# ❌ TLE -> OEM is refused, not faked
-convert("sat.tle", to="ccsds-oem")          # raises UnsupportedConversionError
+# ❌ a TLE to an OEM needs an SGP4 propagation — refused, not faked
+convert("sat.tle", to="ccsds-oem")           # raises UnsupportedConversionError
 ```
 
 See [Lossy conversions](lossy-conversions.md) for the warning types and how to catch them, and

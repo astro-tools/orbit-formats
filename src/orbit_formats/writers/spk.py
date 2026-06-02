@@ -132,6 +132,11 @@ def _segment_from_ephemeris(spice: Any, eph: Ephemeris) -> SpkSegment:
     valid yet never silently incomplete.
     """
     n = len(eph)
+    if n < 2:
+        # An SPK segment is an interpolatable trajectory (a Lagrange segment needs at least two
+        # nodes); a single state — e.g. one embedded from an OPM — is not a trajectory and cannot
+        # be expressed as SPK. Refuse with a typed error rather than letting SPICE raise.
+        raise UnsupportedConversionError(f"{n}-state ephemeris", "spk", "ephemeris of >= 2 states")
     body_id = _resolve_body(spice, eph.metadata.object_name, "object_name", _DEFAULT_BODY_ID)
     center_id = _resolve_body(spice, eph.metadata.central_body, "central_body", _DEFAULT_CENTER_ID)
     frame = _resolve_frame(spice, eph.metadata.reference_frame)
