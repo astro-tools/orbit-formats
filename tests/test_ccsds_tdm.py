@@ -125,11 +125,11 @@ def _bare_tracking() -> Tracking:
 
 
 def test_synthesised_tdm_warns_for_each_unsupplied_required_field(
-    assert_no_silent_loss: Callable[..., None],
+    assert_no_silent_loss: Callable[..., object],
 ) -> None:
     tracking = _bare_tracking()
-    assert_no_silent_loss(lambda: write_tdm(tracking, ".tdm"), loses=True)
-    out = write_tdm(tracking, ".tdm")
+    out = assert_no_silent_loss(lambda: write_tdm(tracking, ".tdm"), loses=True)
+    assert isinstance(out, bytes)
     assert b"UNKNOWN" in out  # the placeholder for TIME_SYSTEM / PARTICIPANT_1
     assert isinstance(read(out), Tracking)
 

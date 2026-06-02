@@ -152,11 +152,11 @@ def _bare_conjunction() -> Conjunction:
 
 
 def test_synthesised_cdm_warns_for_each_unsupplied_required_field(
-    assert_no_silent_loss: Callable[..., None],
+    assert_no_silent_loss: Callable[..., object],
 ) -> None:
     conj = _bare_conjunction()
-    assert_no_silent_loss(lambda: write_cdm(conj, ".cdm"), loses=True)
-    out = write_cdm(conj, ".cdm")
+    out = assert_no_silent_loss(lambda: write_cdm(conj, ".cdm"), loses=True)
+    assert isinstance(out, bytes)
     assert b"UNKNOWN" in out  # the placeholder for fields the canonical record cannot supply
     # The synthesised CDM still parses back into a two-object conjunction.
     assert isinstance(read(out), Conjunction)
