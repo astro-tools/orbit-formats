@@ -23,7 +23,7 @@ fidelity model rather than dropped.
 | CCSDS combined NDM (KVN + XML) | `ccsds-ndm` | ✓ | ✓ | aggregate of NDM messages |
 | GMAT report | `gmat-report` | ✓ | — | ephemeris / state |
 | STK ephemeris | `stk-ephemeris` | ✓ | ✓ | ephemeris |
-| SP3 (SP3-c / SP3-d) | `sp3` | ✓ | — | ephemeris |
+| SP3 (SP3-c / SP3-d) | `sp3` | ✓ | ✓ | ephemeris |
 | RINEX navigation (3.x) | `rinex-nav` | ✓ | — | mean-element set / state |
 | SPK (`[spk]` extra) | `spk` | ✓ | ✓ | ephemeris |
 
@@ -270,12 +270,11 @@ triplet — closed by `END Ephemeris`.
 
 ## SP3 — `sp3`
 
-An IGS precise GNSS ephemeris (`.sp3`, SP3-c / SP3-d) reads into an `Ephemeris`. SP3 is a
-multi-satellite product: a header declares the version, a position-only (`P`) or
+An IGS precise GNSS ephemeris (`.sp3`, SP3-c / SP3-d) reads into an `Ephemeris` and writes back
+out. SP3 is a multi-satellite product: a header declares the version, a position-only (`P`) or
 position-and-velocity (`V`) mode, the satellite list with a per-satellite accuracy code, and
 the time system; the body is a sequence of epochs, each carrying one position record per
-satellite (and, in `V` mode, a velocity record). SP3 is **read-only** — there is no SP3
-writer, so a write to `.sp3` raises `UnsupportedFormatError`.
+satellite (and, in `V` mode, a velocity record).
 
 - **Expresses:** a Cartesian state-vector time series per satellite, tagged **ITRF** (SP3 is
   Earth-centred, Earth-fixed) with **Earth** as the central body and the SP3 time system as
@@ -293,6 +292,15 @@ writer, so a write to `.sp3` raises `UnsupportedFormatError`.
 - **Preserved on `source_native`, not in the canonical form:** the satellite clock offsets
   (and rates), the per-satellite accuracy codes, the specific frame realisation (`IGS20`,
   `IGb14`), the agency / orbit type / GPS week / interval, and the header comments.
+- **Writes** the fixed-column SP3 layout in three tiers. An SP3 read back to SP3 from its
+  retained source is **byte-identical**; without retained bytes the whole fidelity model —
+  every satellite, the clock series, the accuracy codes, and the header — re-serialises
+  **content-lossless**. Any other `Ephemeris` synthesises a single-satellite **SP3-d**: the
+  GPS-week / MJD time header is derived from the epochs, but the clock columns SP3 requires
+  have no canonical slot, so they are written as the SP3 missing-value sentinel and a
+  `LossyConversionWarning` names them. `object_name` becomes the system+PRN satellite id when
+  it already is one, else a placeholder is written (and named); a coordinate that overflows
+  SP3's fixed `F14.6` field is truncated with a `PrecisionLossWarning`.
 - **Detection:** the `#` + version-letter (`#c` / `#d`) content signature on the first line,
   or the `.sp3` extension. The reader parses SP3-c and SP3-d; another version, a malformed
   header, a record with too few columns or a non-numeric value, or a satellite whose record

@@ -93,6 +93,7 @@ _EXTENSION: dict[str, str] = {
     "stk-ephemeris": ".e",
     "stk-attitude": ".a",
     "ccsds-ocm": ".ocm",
+    "sp3": ".sp3",
     "spk": ".bsp",
     "ccsds-aem": ".aem",
     "ccsds-apm": ".apm",

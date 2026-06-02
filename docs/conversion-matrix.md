@@ -15,7 +15,7 @@ than as a bespoke format pair:
 |------|---------------|---------|
 | mean-elements | `MeanElementSet` | `tle`, `ccsds-omm`, `omm-json` / `omm-csv` (Celestrak / Space-Track flat OMM), `rinex-nav` (read-only — GNSS broadcast: GPS / Galileo / BeiDou / QZSS / NavIC) |
 | state | `StateVector` | `ccsds-opm`, `gmat-report` (1 row), `rinex-nav` (read-only — GLONASS / SBAS) |
-| ephemeris | `Ephemeris` | `ccsds-oem`, `stk-ephemeris`, `ccsds-ocm`, `spk` (read/write); `sp3`, `gmat-report` (≥2 rows) (read-only) |
+| ephemeris | `Ephemeris` | `ccsds-oem`, `stk-ephemeris`, `ccsds-ocm`, `spk`, `sp3` (read/write); `gmat-report` (≥2 rows) (read-only) |
 | attitude | `Attitude` | `ccsds-aem` (history), `ccsds-apm` (single attitude), `stk-attitude` (STK `.a`) |
 | conjunction | `Conjunction` | `ccsds-cdm` |
 | tracking | `Tracking` | `ccsds-tdm` |
@@ -24,7 +24,7 @@ than as a bespoke format pair:
 A conversion whose source is already in the target's preferred form is a **same-form
 pass-through**: the canonical object is handed straight to the target's writer. Two formats that
 share a form therefore convert into each other — TLE ↔ OMM ↔ OMM-JSON ↔ OMM-CSV (mean-elements),
-OEM ↔ STK ↔ OCM ↔ SPK
+OEM ↔ STK ↔ OCM ↔ SPK ↔ SP3
 (ephemeris), AEM ↔ APM ↔ STK-attitude (attitude) — carrying whatever the canonical object holds; the only cost is
 whatever the *target writer* cannot express, which it names in a warning. A same-**format** write
 (OEM → OEM) additionally recovers full fidelity from `source_native`.
@@ -62,26 +62,26 @@ canonical field silently — every ⚠️ names what it dropped.
 <!-- capability-matrix: this table is asserted against orbit_formats.conversion_capability by
      tests/test_conversion_matrix.py::test_doc_matrix_matches_capabilities — keep it in sync. -->
 
-| Source ╲ Target | `tle` | `ccsds-omm` | `ccsds-opm` | `ccsds-oem` | `stk-ephemeris` | `ccsds-ocm` | `spk` | `ccsds-aem` | `ccsds-apm` | `stk-attitude` | `ccsds-cdm` | `ccsds-tdm` | `ccsds-ndm` | `omm-json` | `omm-csv` |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `tle` | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ⚠️ |
-| `ccsds-omm` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ⚠️ |
-| `rinex-nav` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-opm` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-oem` | ❌ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `stk-ephemeris` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `sp3` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `gmat-report` | ❌ | ❌ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-ocm` | ❌ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `spk` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-aem` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-apm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `stk-attitude` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-cdm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `ccsds-tdm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| `ccsds-ndm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `omm-json` | ⚠️ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| `omm-csv` | ⚠️ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Source ╲ Target | `tle` | `ccsds-omm` | `ccsds-opm` | `ccsds-oem` | `stk-ephemeris` | `ccsds-ocm` | `spk` | `sp3` | `ccsds-aem` | `ccsds-apm` | `stk-attitude` | `ccsds-cdm` | `ccsds-tdm` | `ccsds-ndm` | `omm-json` | `omm-csv` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `tle` | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ⚠️ |
+| `ccsds-omm` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ⚠️ |
+| `rinex-nav` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-opm` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-oem` | ❌ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `stk-ephemeris` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `sp3` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `gmat-report` | ❌ | ❌ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-ocm` | ❌ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `spk` | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-aem` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-apm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `stk-attitude` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ⚠️ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-cdm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `ccsds-tdm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `ccsds-ndm` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `omm-json` | ⚠️ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| `omm-csv` | ⚠️ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
 
 `rinex-nav` and `gmat-report` are read into the form their content dictates, and the row above
 shows that form's row: `rinex-nav` reads a GNSS *broadcast* mean set (the row shown — refused into
@@ -114,9 +114,9 @@ multi-sample series that warns, naming the dropped epochs (and any interpolation
 one-row `gmat-report` or a GLONASS `rinex-nav` reads directly as a state and round-trips like an
 OPM. A mean-element set to a state needs a propagation, out of scope.
 
-### Ephemeris targets — `ccsds-oem`, `stk-ephemeris`, `ccsds-ocm`, `spk`
+### Ephemeris targets — `ccsds-oem`, `stk-ephemeris`, `ccsds-ocm`, `spk`, `sp3`
 
-These four share the ephemeris form, so they convert into one another carrying the states, frame,
+These five share the ephemeris form, so they convert into one another carrying the states, frame,
 central body, and interpolation hint; format-specific extras a reader parks on `source_native` (an
 OEM's covariance, an OPM's maneuvers, SP3's clocks and other satellites) are not carried, since the
 canonical ephemeris never held them. Each target warns for the fields *it* requires that the
@@ -131,6 +131,13 @@ canonical ephemeris does not supply:
 - **`spk`** synthesises a type-9 segment and warns when a NAIF id, frame, or time scale cannot be
   resolved. **A single state cannot be written as SPK** — an SPK segment is an interpolatable
   trajectory of at least two states — so `ccsds-opm` → `spk` raises `UnsupportedConversionError`.
+- **`sp3`** writes a fixed-column SP3-d file. The satellite clock columns SP3 requires have no
+  slot in the canonical ephemeris, so a synthesised SP3 **always** warns and writes the SP3
+  missing-value sentinel; `object_name` becomes the system+PRN satellite id when it already is one
+  (otherwise a placeholder is written, named), and a coordinate that overflows SP3's fixed F14.6
+  field is truncated with a warning. Writing an SP3 source back to SP3 keeps every satellite and
+  clock series from `source_native` (content-lossless), and a retained-source round trip is
+  byte-identical.
 
 A single state (`ccsds-opm`, a one-row report) embeds as a length-1 ephemeris, so it converts into
 `ccsds-oem` / `stk-ephemeris` / `ccsds-ocm` losslessly (those accept a one-sample ephemeris). A

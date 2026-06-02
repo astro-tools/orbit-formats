@@ -41,6 +41,7 @@ from orbit_formats.writers.oem import write_oem
 from orbit_formats.writers.omm import write_omm
 from orbit_formats.writers.omm_tabular import write_omm_csv, write_omm_json
 from orbit_formats.writers.opm import write_opm
+from orbit_formats.writers.sp3 import write_sp3
 from orbit_formats.writers.spk import write_spk
 from orbit_formats.writers.stk_attitude import write_stk_attitude
 from orbit_formats.writers.stk_ephemeris import write_stk_ephemeris
@@ -153,6 +154,7 @@ GOLDEN_OPM = Path(__file__).parent / "data" / "opm" / "golden_opm.opm"
 GOLDEN_STK = Path(__file__).parent / "data" / "stk" / "golden_roundtrip.e"
 GOLDEN_STK_ATTITUDE = Path(__file__).parent / "data" / "stk" / "golden_roundtrip.a"
 GOLDEN_SPK = Path(__file__).parent / "data" / "spk" / "golden.bsp"
+GOLDEN_SP3 = Path(__file__).parent / "data" / "sp3" / "golden_roundtrip.sp3"
 
 # A single-row GMAT report with a complete state (no NaN-fill) and a position-only one
 # (velocity absent -> MissingFieldWarning) — minimal and self-contained.
@@ -233,6 +235,24 @@ def _incomplete_stk_ephemeris() -> Ephemeris:
     """An ephemeris missing CentralBody and CoordinateSystem — an STK write must warn for each."""
     return Ephemeris(
         metadata=Metadata(time_scale="UTC"),
+        epochs=np.array(["2024-01-01T00:00:00"], dtype="datetime64[ns]"),
+        positions=np.array([[7000.0, 0.0, 0.0]]),
+        velocities=np.array([[0.0, 7.5, 0.0]]),
+    )
+
+
+def _sp3_ephemeris() -> Ephemeris:
+    """An ephemeris read from the SP3 golden (carries an Sp3File source_native)."""
+    eph = read(GOLDEN_SP3.read_bytes())
+    assert isinstance(eph, Ephemeris)
+    return eph
+
+
+def _synthesised_sp3_ephemeris() -> Ephemeris:
+    """A complete ephemeris with no SP3 source_native — an SP3 write still warns for the clock
+    (the canonical form holds no satellite clock), so a synthesised SP3 always loses."""
+    return Ephemeris(
+        metadata=Metadata(object_name="G01", reference_frame="ITRF", time_scale="GPS"),
         epochs=np.array(["2024-01-01T00:00:00"], dtype="datetime64[ns]"),
         positions=np.array([[7000.0, 0.0, 0.0]]),
         velocities=np.array([[0.0, 7.5, 0.0]]),
@@ -543,6 +563,18 @@ _META_CASES = [
         lambda: write_stk_ephemeris(_incomplete_stk_ephemeris()),
         loses=True,
         writer_format="stk-ephemeris",
+    ),
+    _MetaCase(
+        "sp3 write: content-lossless re-serialise",
+        lambda: write_sp3(_sp3_ephemeris()),
+        loses=False,
+        writer_format="sp3",
+    ),
+    _MetaCase(
+        "sp3 write: synthesised, unsupplied satellite clock",
+        lambda: write_sp3(_synthesised_sp3_ephemeris()),
+        loses=True,
+        writer_format="sp3",
     ),
     _MetaCase(
         "spk write: content-lossless re-serialise",
