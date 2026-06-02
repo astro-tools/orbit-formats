@@ -113,6 +113,68 @@ jobs:
       - run: uv run --with ccsds-ndm pytest tests/test_ccsds_oem_oracle.py tests/test_ccsds_omm_oracle.py tests/test_ccsds_opm_oracle.py tests/test_ccsds_aem_oracle.py tests/test_ccsds_apm_oracle.py -v
       - run: uv run --with xmlschema pytest tests/test_ccsds_ocm_oracle.py tests/test_ccsds_ndm_oracle.py -v
 
+  # Cross-validate the conversion layer (elements / frames / time) against Orekit, an
+  # independently developed space-dynamics library (Java, Apache-2.0) — so the conversions are
+  # checked against an outside authority, not only against astropy (which they are built on).
+  # Orekit is bridged via orekit-jpype and runs on a pip-only JDK (the jdk4py extra), so the
+  # oracle needs no system Java and no repo dependency — it is built in a throwaway venv,
+  # transient like the ccsds-ndm oracle. orekit-jpype pins numpy<2.3, so that env is resolved
+  # fresh with the constraint rather than layered on the project lock. The Earth-orientation /
+  # leap-second reference is a pinned orekit-data snapshot fetched once at install time; the
+  # test itself touches no network (it reads the archive named by OREKIT_DATA_ZIP) and skips
+  # without it.
+  orekit:
+    name: orekit cross-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Pinned orekit-data commit (gitlab.orekit.org/orekit/orekit-data) — the reference EOP /
+      # leap-second data. Bump deliberately; the oracle's tolerances are calibrated to it.
+      OREKIT_DATA_SHA: 5eaa23533a9b89972358ae8badfbcf85aadf8633
+    steps:
+      - uses: actions/checkout@v4
+      # orekit-jpype pins numpy<2.3, which the project's >=3.11 lock resolution exceeds, so the
+      # oracle env is built fresh on 3.11 with that constraint rather than from the project lock.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Fetch pinned orekit-data (install time only)
+        run: |
+          curl -fsSL \
+            "https://gitlab.orekit.org/orekit/orekit-data/-/archive/${OREKIT_DATA_SHA}/orekit-data-${OREKIT_DATA_SHA}.zip" \
+            -o orekit-data.zip
+      - name: Build the oracle env (project + Orekit + pip-only JDK, numpy<2.3)
+        run: |
+          uv venv --python 3.11 .venv-orekit
+          uv pip install --python .venv-orekit . 'orekit-jpype[jdk4py]' 'numpy<2.3' pytest
+      - name: Orekit oracle
+        env:
+          OREKIT_DATA_ZIP: ${{ github.workspace }}/orekit-data.zip
+        run: .venv-orekit/bin/python -m pytest tests/test_convert_oracle.py -v
+
+  # Cross-validate the SPK round-trip against SPICE's own geometric-state evaluator (spkgeo),
+  # independent of our DAF parser. spiceypy is the [spk] extra's own implementation library, so
+  # this also exercises that install path. The check skips wherever spiceypy is absent.
+  spice:
+    name: spice cross-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --all-groups
+      - run: uv run pytest tests/test_spk_oracle.py -v
+
   # Validate CITATION.cff against the Citation File Format v1.2.0 schema. cffconvert
   # is installed standalone because it is a CI-only schema check, not part of the dev
   # or runtime dependency graph.
