@@ -7,12 +7,13 @@ Three tiers, picked automatically (as for the OPM writer):
    are echoed (**byte-identical**).
 2. An ``ApmFile`` ``source_native`` without retained bytes → the structured fidelity model is
    re-serialised (**content-lossless** — the quaternion, its rate, and the comments preserved).
-3. Any other single-row quaternion ``Attitude`` → an APM is built from the canonical attitude,
-   warning for each APM-required field the canonical form cannot supply.
+3. Any other quaternion ``Attitude`` → an APM is built from the canonical attitude, warning for
+   each APM-required field the canonical form cannot supply.
 
-APM holds one quaternion attitude, so a multi-row attitude (an AEM time series) or a non-
-quaternion representation cannot be written as an APM — the writer raises rather than dropping
-rows or guessing. The notation is chosen from the destination extension (``.apm`` → KVN,
+APM holds one quaternion attitude. A quaternion attitude *history* (an AEM time series) collapses
+to its first record, reported as a lossy conversion that names the dropped records; only a
+non-quaternion representation cannot be written as an APM and raises. The notation is chosen from
+the destination extension (``.apm`` → KVN,
 ``.xml`` → XML), else the source's own notation, else KVN. The XML half lives in
 :mod:`orbit_formats.adapters.apm_xml`, imported lazily.
 """
@@ -42,9 +43,10 @@ def write_apm(obj: Canonical, suffix: str | None = None) -> bytes:
     """Serialise ``obj`` (a single quaternion :class:`Attitude`) to CCSDS APM bytes (KVN/XML).
 
     Picks the byte-identical / content-lossless / synthesised path automatically, and the KVN
-    or XML notation from ``suffix`` else the source's own notation else KVN. Raises
-    :class:`~orbit_formats.errors.UnsupportedConversionError` if ``obj`` is not an ``Attitude``,
-    is not a single-row attitude, or is not a quaternion — APM holds one quaternion attitude.
+    or XML notation from ``suffix`` else the source's own notation else KVN. A quaternion
+    attitude history collapses to its first record (a lossy conversion naming the dropped
+    records); raises :class:`~orbit_formats.errors.UnsupportedConversionError` only if ``obj`` is
+    not an ``Attitude`` or is not a quaternion — APM holds one quaternion attitude.
     """
     if not isinstance(obj, Attitude):
         raise UnsupportedConversionError(type(obj).__name__, "ccsds-apm", "attitude")
@@ -81,17 +83,34 @@ def _serialize_apmfile(apm: ApmFile, notation: Literal["kvn", "xml"]) -> bytes:
 
 
 def _apmfile_from_attitude(attitude: Attitude) -> ApmFile:
-    """Build an :class:`ApmFile` from a single quaternion ``Attitude``, warning on missing fields.
+    """Build an :class:`ApmFile` from a quaternion ``Attitude``, warning on missing fields.
 
-    Raises :class:`~orbit_formats.errors.UnsupportedConversionError` for a non-quaternion or
-    multi-row attitude — APM holds one quaternion (an attitude time series is an AEM).
+    A quaternion history (more than one record) collapses to its first record, reported through
+    :func:`~orbit_formats.warnings.warn_lossy` as a dropped-``records`` loss. Raises
+    :class:`~orbit_formats.errors.UnsupportedConversionError` only for a non-quaternion attitude —
+    APM holds one quaternion (representing an Euler or spin attitude as a quaternion would be a
+    representation conversion, out of scope).
     """
     if attitude.attitude_type != "QUATERNION":
         raise UnsupportedConversionError(
             f"{attitude.attitude_type} attitude", "ccsds-apm", "attitude"
         )
-    if len(attitude) != 1:
-        raise UnsupportedConversionError(f"{len(attitude)}-state attitude", "ccsds-apm", "attitude")
+    count = len(attitude)
+    if count > 1:
+        warn_lossy(
+            LossyConversionWarning(
+                f"collapsed an attitude history of {count} records to the first; "
+                f"an APM holds one attitude",
+                dropped=(
+                    DroppedField(
+                        "records",
+                        f"an attitude history of {count} records collapses to a single APM "
+                        f"attitude; kept the first record and dropped the other {count - 1}",
+                    ),
+                ),
+            ),
+            stacklevel=4,
+        )
     md = attitude.metadata
     metadata = ApmMetadata(
         object_name=_required("OBJECT_NAME", md.object_name),

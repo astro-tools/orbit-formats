@@ -15,6 +15,7 @@ import pytest
 
 from orbit_formats import (
     Attitude,
+    LossyConversionWarning,
     MalformedSourceError,
     Metadata,
     UnsupportedConversionError,
@@ -169,17 +170,23 @@ def test_synthesised_write_warns_for_missing_required_fields() -> None:
     assert b"Q_FRAME_A = UNKNOWN" in out
 
 
-def test_a_multi_row_attitude_cannot_be_written_as_apm() -> None:
+def test_a_multi_row_attitude_collapses_to_its_first_record_as_apm() -> None:
     att = Attitude(
         metadata=Metadata(object_name="SAT", object_id="X", time_scale="UTC"),
         attitude_type="QUATERNION",
         epochs=np.array(["2024-01-01T00:00:00", "2024-01-01T00:01:00"], dtype="datetime64[ns]"),
-        records=np.array([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]]),
+        records=np.array([[0.1, 0.2, 0.3, 0.9], [0.0, 0.0, 0.0, 1.0]]),
         frame_a="EME2000",
         frame_b="SC_BODY",
     )
-    with pytest.raises(UnsupportedConversionError):
-        write_apm(att, ".apm")
+    # A quaternion history is no longer refused: APM holds one attitude, so it collapses to the
+    # first record, reported as a lossy conversion that names the dropped records.
+    with pytest.warns(LossyConversionWarning, match="records"):
+        out = write_apm(att, ".apm")
+    reparsed = read(out)
+    assert isinstance(reparsed, Attitude)
+    assert len(reparsed) == 1
+    assert reparsed.epochs[0] == att.epochs[0]  # the kept record is the first one
 
 
 def test_a_non_quaternion_attitude_cannot_be_written_as_apm() -> None:

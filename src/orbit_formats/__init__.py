@@ -23,6 +23,12 @@ from orbit_formats.canonical import (
     Tracking,
     TrackingObservation,
 )
+from orbit_formats.convert import (
+    ConversionCapability,
+    ConversionKind,
+    capability_matrix,
+    conversion_capability,
+)
 from orbit_formats.detect import detect_format
 from orbit_formats.errors import (
     AmbiguousFormatError,
@@ -60,6 +66,8 @@ __all__ = [
     "Combined",
     "Conjunction",
     "ConjunctionObject",
+    "ConversionCapability",
+    "ConversionKind",
     "DroppedField",
     "DroppedFieldWarning",
     "Ephemeris",
@@ -87,6 +95,8 @@ __all__ = [
     "UnsupportedConversionError",
     "UnsupportedFormatError",
     "__version__",
+    "capability_matrix",
+    "conversion_capability",
     "convert",
     "detect_format",
     "normalize_format",

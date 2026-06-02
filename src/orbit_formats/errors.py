@@ -80,7 +80,7 @@ class UnsupportedConversionError(OrbitFormatsError):
         self.target_form = target_form
         super().__init__(
             f"no conversion path from a {source_form} to {target_format!r} "
-            f"(which expects a {target_form}); only same-form conversion is supported"
+            f"(which expects a {target_form})"
         )
 
 

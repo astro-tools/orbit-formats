@@ -13,7 +13,9 @@ from orbit_formats import (
     Ephemeris,
     FidelityModel,
     FrameRotationUnsupportedError,
+    MeanElementSet,
     Metadata,
+    StateVector,
     UnsupportedConversionError,
     convert,
 )
@@ -45,17 +47,17 @@ def test_same_form_route_returns_the_same_object() -> None:
     assert route(ephemeris, "ephemeris", "ephemeris") is ephemeris
 
 
-def test_cross_form_route_has_no_v01_edge() -> None:
+def test_cross_form_route_with_no_edge_returns_none() -> None:
     # mean-elements -> ephemeris needs a propagator (out of scope); no edge exists.
     assert route(_ephemeris(), "mean-elements", "ephemeris") is None
 
 
 def test_route_dispatches_a_registered_cross_form_edge(monkeypatch: pytest.MonkeyPatch) -> None:
-    # The v0.1 edge table is empty, but the routing machinery must dispatch an edge once
-    # one is registered — this is the skeleton the later cross-form transforms plug into.
+    # Routing must dispatch whatever edge is registered for a form pair. Use a pair with no real
+    # edge (mean-elements -> ephemeris needs a propagator) so the sentinel dispatch is unambiguous.
     sentinel = _ephemeris()
-    monkeypatch.setitem(_TRANSFORMS, ("state", "ephemeris"), lambda _obj: sentinel)
-    assert route(_ephemeris(), "state", "ephemeris") is sentinel
+    monkeypatch.setitem(_TRANSFORMS, ("mean-elements", "ephemeris"), lambda _obj: sentinel)
+    assert route(_ephemeris(), "mean-elements", "ephemeris") is sentinel
 
 
 def test_same_form_pass_through_preserves_source_native_and_is_lossless(
@@ -72,10 +74,33 @@ def test_same_form_pass_through_preserves_source_native_and_is_lossless(
     assert_no_silent_loss(lambda: convert(ephemeris, to="ccsds-oem"), loses=False)
 
 
-def test_cross_form_conversion_is_unsupported_through_the_public_surface() -> None:
-    # ephemeris -> ccsds-opm (state form) has no propagator-free edge in v0.1.
+def test_single_series_bridge_is_supported_through_the_public_surface() -> None:
+    # The propagator-free single <-> series bridges route without raising: a single state embeds
+    # as an ephemeris, and a (length-1) ephemeris collapses back to a state.
+    state = StateVector(
+        metadata=Metadata(reference_frame="EME2000", time_scale="UTC", central_body="EARTH"),
+        epoch=np.datetime64("2020-06-01T00:00:00", "ns"),
+        position=np.array([7000.0, 0.0, 0.0]),
+        velocity=np.array([0.0, 7.5, 0.0]),
+    )
+    assert isinstance(convert(state, to="ccsds-oem"), Ephemeris)
+    assert isinstance(convert(_ephemeris(), to="ccsds-opm"), StateVector)
+
+
+def test_propagator_needing_cross_form_is_unsupported_through_the_public_surface() -> None:
+    # A mean-element set to an ephemeris (or state) needs a propagation, out of scope; refused.
+    mean = MeanElementSet(
+        metadata=Metadata(reference_frame="TEME", time_scale="UTC"),
+        epoch=np.datetime64("2020-06-01T00:00:00", "ns"),
+        mean_motion=15.5,
+        eccentricity=0.001,
+        inclination=51.6,
+        raan=247.0,
+        arg_periapsis=130.0,
+        mean_anomaly=325.0,
+    )
     with pytest.raises(UnsupportedConversionError):
-        convert(_ephemeris(), to="ccsds-opm")
+        convert(mean, to="ccsds-oem")
 
 
 # --- the frame axis: apply_frame ---------------------------------------------------
