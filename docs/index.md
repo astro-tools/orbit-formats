@@ -29,11 +29,12 @@ depend on as the single source of format truth.
 
 ## What it reads and writes
 
-orbit-formats reads TLE / 3LE; the full CCSDS NDM family — OEM, OMM, OPM, OCM, AEM, APM, CDM,
-TDM, and the combined NDM, each in KVN and XML; STK ephemeris; SP3; GMAT report; SPICE SPK
-(behind the `[spk]` extra); and RINEX navigation. It writes every one of those except the
-read-only SP3, GMAT report, and RINEX navigation; converts between formats that share a
-canonical form — including the lossless TLE ↔ OMM pairing; and rotates Cartesian states across
+orbit-formats reads TLE / 3LE (with the catalogue and alpha-5 variants); the full CCSDS NDM
+family — OEM, OMM, OPM, OCM, AEM, APM, CDM, TDM, and the combined NDM, each in KVN and XML; the
+Celestrak / Space-Track flat OMM (JSON and CSV); STK ephemeris; STK attitude; SP3; GMAT report;
+SPICE SPK (behind the `[spk]` extra); and RINEX navigation. It writes every one of those except
+the read-only GMAT report and RINEX navigation; converts between formats that share a canonical
+form — including the lossless TLE ↔ OMM pairing; and rotates Cartesian states across
 TEME / EME2000 / GCRF / ICRF / ITRF on request. See [Formats](formats.md) for what each can and
 cannot express, and the [conversion-capability matrix](conversion-matrix.md) for what converts
 to what.
