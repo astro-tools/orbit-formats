@@ -198,6 +198,67 @@ Out of scope:
 - **A form with no Cartesian state** (a mean-element set, an attitude, a conjunction, a tracking
   set) has nothing to rotate; requesting a frame on one raises `FrameRotationUnsupportedError`.
 
+## Geodetic projection
+
+Once a state is in the Earth-fixed `ITRF`, the last step of a ground track is purely geometric:
+projecting the ECEF Cartesian position onto a reference ellipsoid to read off a longitude,
+latitude, and height. `cartesian_to_geodetic` and its inverse `geodetic_to_cartesian` do exactly
+that, composing on top of the frame rotation above to give a full inertial → geodetic path.
+
+Unlike the frame rotation, this is closed-form geometry — no precession, nutation, or
+Earth-orientation data — so it is plain numpy with **no astropy dependency**: longitudes and
+latitudes in degrees, heights and positions in km, the same unit convention as the rest of the
+conversion layer. The latitude is geodetic (the angle of the local ellipsoid normal). The
+reference ellipsoid is table-driven: pass a known name (`"WGS84"`, the default) or a custom
+`Ellipsoid`, so another body can be projected without a new code path.
+
+```python
+import numpy as np
+from orbit_formats.convert import (
+    rotate_state,
+    cartesian_to_geodetic,
+    geodetic_to_cartesian,
+    GeodeticLocation,
+    Ellipsoid,
+)
+
+# An inertial (TEME) state at one epoch — position km, velocity km/s.
+positions = np.array([[-4400.594, 1932.870, 4760.712]])
+velocities = np.array([[-5.835, -4.929, -3.397]])
+epochs = np.array(["2020-06-01T12:00:00"], dtype="datetime64[ns]")
+
+# 1) rotate the inertial state into the Earth-fixed ITRF (precession / nutation / EOP).
+ecef, _ = rotate_state(
+    positions, velocities, epochs, time_scale="UTC", from_frame="TEME", to_frame="ITRF"
+)
+
+# 2) project the ECEF position onto the WGS84 ellipsoid — the sub-satellite point.
+longitude, latitude, height = cartesian_to_geodetic(ecef)   # degrees, degrees, km
+
+# The inverse places a geodetic coordinate back in ECEF.
+back = geodetic_to_cartesian(longitude, latitude, height)   # (N, 3) km, round-trips `ecef`
+
+# A fixed ground site is a small value type that carries its own ellipsoid.
+site = GeodeticLocation(longitude=-75.7, latitude=45.4, height=0.076)   # km
+site_ecef = site.to_cartesian()                                         # (3,) km
+GeodeticLocation.from_cartesian(site_ecef)                              # back to lon/lat/height
+
+# Another body is data, not code: pass a custom Ellipsoid.
+moon = Ellipsoid(semi_major_axis=1737.4, inverse_flattening=float("inf"))   # a sphere
+cartesian_to_geodetic(np.array([1200.0, 0.0, 1500.0]), ellipsoid=moon)
+```
+
+Both directions take and return plain numpy: a single `(3,)` position or an `(N, 3)` series,
+vectorised over the leading axis. A name the table does not know raises `ValueError` rather than
+guessing an ellipsoid.
+
+> **Scope note.** The project charter lists "geodetic lat/lon/height output" and "a general
+> frame-transformation engine" as non-goals. This projection is the deliberately narrow case: the
+> single ellipsoid projection a ground-track consumer needs, composed on top of the `ITRF` rotation
+> the library already performs — not a general geodesy toolkit (no geoid undulation, vertical
+> datums, or access/visibility geometry, which remain out of scope). Accepting it is a conscious,
+> scoped extension of the conversion layer.
+
 ## Reading the matrix in code
 
 The table above is generated from the same code the converter uses; query it directly:
