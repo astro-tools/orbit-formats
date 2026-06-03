@@ -231,11 +231,30 @@ def test_man_units_may_list_a_token_per_column_including_time() -> None:
 
 def test_mismatched_man_units_count_falls_back_to_canonical_km_per_s() -> None:
     # A MAN_UNITS list matching neither the column count nor the non-time count is ignored, and Δv
-    # is read in the canonical km/s (no scaling) rather than guessing a unit.
+    # is read in the canonical km/s (no scaling) rather than guessing a unit. Nothing was stated to
+    # honour, so this fallback is warning-free.
     mismatched = _OCM_MANEUVERS.replace(b"MAN_UNITS = s,kg,m/s,m/s,m/s", b"MAN_UNITS = s,kg")
     eph = read(mismatched)
     assert isinstance(eph, Ephemeris)
     assert eph.maneuvers[0].delta_v == pytest.approx([10.0, 0.0, 0.0])  # treated as km/s
+
+
+def test_a_stated_but_unrecognised_dv_unit_warns_and_reads_as_km_per_s() -> None:
+    # A Δv unit that is neither km/s nor m/s cannot be honoured. Rather than silently mis-scale the
+    # Δv (here by 1000x), the reader names the loss and reads the value as the canonical km/s. The
+    # warning fires once for the block, not once per manLine.
+    exotic = _OCM_MANEUVERS.replace(
+        b"MAN_UNITS = s,kg,m/s,m/s,m/s", b"MAN_UNITS = s,kg,furlong/s,furlong/s,furlong/s"
+    )
+    with pytest.warns(LossyConversionWarning) as record:
+        eph = read(exotic)
+    assert isinstance(eph, Ephemeris)
+    assert eph.maneuvers[0].delta_v == pytest.approx([10.0, 0.0, 0.0])  # read as km/s, x1.0
+    lossy = [w.message for w in record if isinstance(w.message, LossyConversionWarning)]
+    assert len(lossy) == 1  # once for the block, not once per manLine
+    (message,) = lossy
+    assert {field.name for field in message.dropped} == {"MAN_UNITS"}
+    assert "furlong/s" in str(message)
 
 
 def test_cross_format_write_drops_maneuvers_naming_the_loss(tmp_path: Path) -> None:

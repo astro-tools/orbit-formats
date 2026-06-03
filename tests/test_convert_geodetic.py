@@ -214,6 +214,26 @@ def test_wgs84_ellipsoid_constants() -> None:
     np.testing.assert_allclose(wgs84.eccentricity_squared, 0.0066943799901413165, rtol=1e-12)
 
 
+def test_ellipsoid_rejects_physically_impossible_parameters() -> None:
+    # inverse_flattening = 0 (a plausible "no flattening" mistake) used to raise an opaque
+    # ZeroDivisionError in .flattening; a non-positive axis or a sub-unity inverse flattening
+    # (e^2 >= 1) used to yield silent NaN / nonsense coordinates. All now fail clearly at
+    # construction, and the sphere idiom is named in the message.
+    with pytest.raises(ValueError, match=r"float\('inf'\) for a sphere"):
+        Ellipsoid(semi_major_axis=6378.137, inverse_flattening=0.0)
+    with pytest.raises(ValueError, match="inverse_flattening must be greater than 1"):
+        Ellipsoid(semi_major_axis=6378.137, inverse_flattening=0.5)
+    with pytest.raises(ValueError, match="semi_major_axis must be positive"):
+        Ellipsoid(semi_major_axis=-6378.137, inverse_flattening=298.257223563)
+    with pytest.raises(ValueError, match="semi_major_axis must be positive"):
+        Ellipsoid(semi_major_axis=0.0, inverse_flattening=298.257223563)
+    # NaN is rejected too — the `not _ > _` guards catch it rather than propagating NaN.
+    with pytest.raises(ValueError, match="semi_major_axis must be positive"):
+        Ellipsoid(semi_major_axis=float("nan"), inverse_flattening=298.257223563)
+    # A sphere (infinite inverse flattening, f = 0) stays valid.
+    assert Ellipsoid(semi_major_axis=6371.0, inverse_flattening=float("inf")).flattening == 0.0
+
+
 # --- the latitude iteration's safety cap --------------------------------------------------
 
 

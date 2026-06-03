@@ -49,6 +49,7 @@ from orbit_formats.readers.ccsds import (
 )
 from orbit_formats.registry import register_reader
 from orbit_formats.source import Source
+from orbit_formats.warnings import DroppedField, LossyConversionWarning, warn_lossy
 
 __all__ = [
     "FieldValue",
@@ -987,8 +988,12 @@ def _as_str(value: FieldValue | None) -> str | None:
 # per-element sigmas, deployment terms) stays on the OcmFile ``source_native`` only.
 _MAN_TIME_COLUMNS = frozenset({"TIME_ABSOLUTE", "TIME_RELATIVE"})
 _DV_COLUMNS = ("DV_X", "DV_Y", "DV_Z")
-# Δv unit token → factor to the canonical km/s. An unrecognised or absent unit defaults to
-# km/s — the canonical speed unit and the (unit-less) OPM convention — never a fabricated scale.
+# Δv unit token → factor to the canonical km/s. An *unstated* unit (no MAN_UNITS, or a count
+# that matches no column layout) defaults to km/s — the canonical speed unit and the (unit-less)
+# OPM convention — warning-free, since nothing was stated to honour. A unit that *is* stated but
+# is not one of these is a different matter: it cannot be honoured, so the Δv is read as km/s and
+# the loss is named through warn_lossy (see _warn_unrecognised_dv_units) rather than mis-scaled in
+# silence.
 _DV_TO_KM_S = {"km/s": 1.0, "m/s": 1.0e-3}
 
 
@@ -1021,6 +1026,8 @@ def _maneuvers_from_block(block: OcmManeuverBlock, tzero: np.datetime64 | None) 
     time_kind = columns[time_index]
     units = _man_unit_map(block, columns)
     dv_indices = _dv_indices(columns)
+    if dv_indices is not None:
+        _warn_unrecognised_dv_units(units)
     dura_index = columns.index("MAN_DURA") if "MAN_DURA" in columns else None
     dmass_index = columns.index("DELTA_MASS") if "DELTA_MASS" in columns else None
 
@@ -1088,6 +1095,38 @@ def _man_unit_map(block: OcmManeuverBlock, columns: list[str]) -> dict[str, str]
     if len(units) == 1 and non_time:
         return {column: units[0] for column in non_time}
     return {}
+
+
+def _warn_unrecognised_dv_units(units: dict[str, str]) -> None:
+    """Warn once per block if a Δv column states a unit this reader cannot scale to km/s.
+
+    Only a *stated* Δv unit triggers this — a column absent from ``units`` legitimately falls
+    back to the canonical km/s (see :data:`_DV_TO_KM_S`). A stated unit that is neither ``km/s``
+    nor ``m/s`` cannot be honoured: the Δv is read as km/s and may be mis-scaled, so the loss is
+    named rather than applied in silence. Duplicate tokens (the common single-unit-for-all case)
+    collapse to one named field.
+    """
+    unrecognised = sorted(
+        {
+            units[column]
+            for column in _DV_COLUMNS
+            if column in units and units[column] not in _DV_TO_KM_S
+        }
+    )
+    if not unrecognised:
+        return
+    listed = ", ".join(repr(unit) for unit in unrecognised)
+    warn_lossy(
+        LossyConversionWarning(
+            f"OCM maneuver Δv unit {listed} is not recognised; the Δv was read as km/s "
+            f"(the canonical default) and may be mis-scaled",
+            dropped=tuple(
+                DroppedField("MAN_UNITS", f"the stated Δv unit {unit} is not km/s or m/s")
+                for unit in unrecognised
+            ),
+        ),
+        stacklevel=3,
+    )
 
 
 def _man_delta_v(

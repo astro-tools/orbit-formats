@@ -43,6 +43,20 @@ class Ellipsoid:
     semi_major_axis: float
     inverse_flattening: float
 
+    def __post_init__(self) -> None:
+        # Reject physically impossible parameters up front: without this an
+        # ``inverse_flattening`` of 0 raises an opaque ``ZeroDivisionError`` deep in
+        # :attr:`flattening`, and a negative axis or a sub-unity inverse flattening
+        # (``e^2 >= 1``) silently yields NaN / nonsense coordinates. The ``not _ > _`` form
+        # also rejects NaN. A sphere is ``inverse_flattening = float("inf")`` (``f = 0``).
+        if not self.semi_major_axis > 0.0:
+            raise ValueError(f"semi_major_axis must be positive, got {self.semi_major_axis!r}")
+        if not self.inverse_flattening > 1.0:
+            raise ValueError(
+                "inverse_flattening must be greater than 1 "
+                f"(use float('inf') for a sphere), got {self.inverse_flattening!r}"
+            )
+
     @property
     def flattening(self) -> float:
         """The flattening ``f = (a - b) / a`` (0 for a sphere)."""
