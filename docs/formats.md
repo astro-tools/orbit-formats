@@ -23,6 +23,7 @@ fidelity model rather than dropped.
 | CCSDS combined NDM (KVN + XML) | `ccsds-ndm` | ✓ | ✓ | aggregate of NDM messages |
 | GMAT report | `gmat-report` | ✓ | — | ephemeris / state |
 | STK ephemeris | `stk-ephemeris` | ✓ | ✓ | ephemeris |
+| STK attitude | `stk-attitude` | ✓ | ✓ | attitude |
 | SP3 (SP3-c / SP3-d) | `sp3` | ✓ | ✓ | ephemeris |
 | RINEX navigation (3.x) | `rinex-nav` | ✓ | — | mean-element set / state |
 | SPK (`[spk]` extra) | `spk` | ✓ | ✓ | ephemeris |
@@ -41,6 +42,15 @@ categories: AEM and APM read into an **attitude** (`Attitude`), the CDM into a *
 (`Conjunction`), and the TDM into a **tracking** set (`Tracking`). Each is its own form — what
 they hold is described in the [canonical representation](canonical-representation.md), and what
 converts to what is in the [conversion matrix](conversion-matrix.md).
+
+!!! note "Vendor and extended formats"
+    Alongside the open standards, orbit-formats reads and writes the **vendor and alternative
+    encodings** operators actually exchange — STK attitude (`.a`), the Celestrak / Space-Track flat
+    OMM (`omm-json`, `omm-csv`), and the name-annotated 3LE / catalogue / alpha-5 TLE variants —
+    each mapping onto a canonical form orbit-formats already models, not a new one. The supported
+    set is **documented, open, text formats only**. Proprietary or undocumented binary formats —
+    GMAT Code-500, JPL navigation databases, vendor OEM extensions — stay out of scope: a faithful
+    round trip needs a published format, and orbit-formats records what a format *states*.
 
 **CCSDS notation — KVN and XML.** Every CCSDS message — OEM, OMM, OPM, OCM, AEM, APM, CDM, TDM,
 and the combined NDM — reads and writes in both CCSDS notations under a single format id. The
@@ -267,6 +277,43 @@ triplet — closed by `END Ephemeris`.
   extension. Only the banner, `BEGIN Ephemeris`, `ScenarioEpoch`, and a recognised data
   section are mandatory; other data-section variants (e.g. `EphemerisTimePos`) raise
   `MalformedSourceError`.
+
+## STK attitude — `stk-attitude`
+
+An AGI / STK text attitude (`.a`) reads into an `Attitude` — the attitude analogue of the STK
+ephemeris `.e`, sharing its file shape: a `stk.v.X.Y` banner and optional `# …` comments, then a
+`BEGIN Attitude` block of whitespace-separated `KEY VALUE` metadata (`ScenarioEpoch`,
+`CentralBody`, `CoordinateAxes`, `Sequence`, …), then an `AttitudeTime…` data section whose
+records are an offset-from-epoch in seconds plus the attitude components.
+
+- **Expresses:** a quaternion or Euler-angle attitude history. `AttitudeTimeQuaternions`
+  (scalar-last) and `AttitudeTimeQuatScalarFirst` (scalar-first, reordered to the canonical
+  scalar-last `Q1 Q2 Q3 QC`) read into a quaternion history; `AttitudeTimeEulerAngles` (with its
+  `Sequence`) into an Euler-angle history. It is tagged with the reference axes (`CoordinateAxes`
+  → `frame_a`; STK leaves the body frame implicit, so `frame_b` is unset), the central body, and —
+  like the `.e` — the **UTC** default scale (a `.a` declares none). Each record's offset is made
+  absolute against `ScenarioEpoch`.
+- **Does not express:** STK's YPR, DCM, angular-velocity / rate, direction-vector, and spin
+  attitude sections have no faithful canonical representation here, so the reader **rejects** them
+  with `MalformedSourceError` rather than guessing — the same discipline the AEM reader applies.
+  The object name / id and the named body frame an AEM / APM carries have no slot in a `.a`.
+- **Optional `END Attitude`.** AGI documents the terminator as required, but real STK output
+  routinely omits it (the data section runs to end-of-file), so it is treated as optional: present,
+  it closes the block and rejects trailing content; absent, EOF ends the data.
+- **Preserved on `source_native`, not in the canonical form:** the version banner, the header
+  comments, the data-section header, whether the source carried `END Attitude`, and every meta
+  keyword verbatim (including any the canonical form does not interpret).
+- **Writing** picks one of three paths automatically, mirroring the OEM writer: a byte-identical
+  re-emit (with `retain_source=True`), a content-lossless re-serialisation of the fidelity model
+  (a scalar-first source is re-emitted scalar-first under its original section), or — for a
+  synthesised or cross-format attitude with no STK `source_native` — a fresh `.a` built from the
+  canonical fields, warning for each `.a`-required field (`ScenarioEpoch`, `CentralBody`,
+  `CoordinateAxes`, and `Sequence` for an Euler history) the canonical form cannot supply and for
+  each canonical field a `.a` cannot hold (the object name / id, the named body frame). A spin
+  attitude has no STK section here and raises `UnsupportedConversionError`.
+- **Detection:** the `stk.v.X.Y` banner with a `BEGIN Attitude` block — the block keyword is what
+  distinguishes it from the ephemeris `.e` (which carries `BEGIN Ephemeris`) — or the `.a`
+  extension.
 
 ## SP3 — `sp3`
 
