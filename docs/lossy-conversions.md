@@ -25,7 +25,7 @@ records — inspect *what* was lost as data, not by scraping a message string.
 
 | Warning | Fires when |
 |---------|-----------|
-| `DroppedFieldWarning` | the target format structurally cannot represent a value the source had (e.g. covariance written to a format with no covariance block) |
+| `DroppedFieldWarning` | the target format structurally cannot represent a value the source had (e.g. covariance, or maneuvers, written to a format with no block for them) |
 | `PrecisionLossWarning` | a value is narrowed to fit a target's field width or numeric precision |
 | `ModelApproximationWarning` | a cross-category conversion introduces a model step, so the result is model-dependent rather than an exact restatement |
 | `MissingFieldWarning` | the *source* omitted a value the canonical form has room for; the slot is filled with NaN, never fabricated |

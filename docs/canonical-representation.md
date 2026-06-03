@@ -66,6 +66,42 @@ Per-format specifics that have no slot in these schemas — an AEM's interpolati
 screen-volume and extended covariance, a TDM's full segment metadata — ride on the
 `source_native` fidelity model below, exactly as the orbit categories' format-specific fields do.
 
+## Maneuvers
+
+OPM and OCM are the formats that state spacecraft maneuvers, and their burns are exposed as a
+typed `Maneuver` record on the canonical object the format reads into — a `maneuvers` collection
+on the `StateVector` (OPM) and on the `Ephemeris` (OCM). A `Maneuver` is not a category of its
+own: a burn belongs to the body whose state it acts on, so it shares that object's metadata spine
+rather than carrying one. Each record holds the burn's common denominator across the two formats:
+
+| Field | Meaning |
+|-------|---------|
+| `epoch_ignition` | the ignition epoch |
+| `ref_frame` | the frame the `delta_v` is expressed in (a burn names its own frame — often RTN — independent of the state's) |
+| `duration` | seconds; `0.0` for an impulsive burn |
+| `delta_v` | the `(3,)` Δv vector in km/s, when the source states it (else `None`) |
+| `delta_mass` | the mass change in kg, when stated |
+| `comments` | the block's leading comment lines |
+
+```python
+from orbit_formats import read
+
+state = read("mission.opm")
+for burn in state.maneuvers:
+    print(burn.epoch_ignition, burn.ref_frame, burn.delta_v)
+```
+
+An OCM `man` block is read through its `MAN_COMPOSITION` columns: the time column places each
+`manLine` (an absolute epoch, or seconds relative to `EPOCH_TZERO`), `DV_X` / `DV_Y` / `DV_Z` give
+the Δv (scaled to km/s via `MAN_UNITS`), and `MAN_DURA` / `DELTA_MASS` fill the duration and mass
+change. Composition columns the record has no slot for — thrust, deterministic-command timing,
+per-element sigmas — stay on `source_native`, like every other format-specific field.
+
+The maneuvers ride through the conversion layer (a frame rotation or a single ↔ series bridge
+carries them verbatim — a burn's Δv is not rotated), and a same-format write recovers them from
+`source_native`. A write to a format with no maneuver block drops them, naming the loss through a
+`LossyConversionWarning` rather than dropping it in silence.
+
 ## `source_native` — the round-trip handle
 
 A canonical object keeps an optional handle, `source_native`, back to the fidelity model it

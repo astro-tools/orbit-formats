@@ -42,7 +42,12 @@ from orbit_formats.readers.ccsds_ocm import (
     format_field,
 )
 from orbit_formats.registry import register_writer
-from orbit_formats.warnings import DroppedField, LossyConversionWarning, warn_lossy
+from orbit_formats.warnings import (
+    DroppedField,
+    LossyConversionWarning,
+    warn_dropped_maneuvers,
+    warn_lossy,
+)
 from orbit_formats.writers.oem import _comment_lines, _format_epoch, _format_float
 
 __all__ = ["write_ocm"]
@@ -75,6 +80,9 @@ def write_ocm(obj: Canonical, suffix: str | None = None) -> bytes:
         if native.raw_bytes is not None and notation == native.serialization:
             return native.raw_bytes
         return _serialize_ocmfile(native, notation)
+    # Synthesising from a non-OCM ephemeris: the synthesised OCM carries only the trajectory, so
+    # any canonical maneuvers the object holds cannot be serialised and are reported dropped.
+    warn_dropped_maneuvers(obj.maneuvers, target_format="ccsds-ocm")
     return _serialize_ocmfile(_ocmfile_from_ephemeris(obj), requested or "kvn")
 
 

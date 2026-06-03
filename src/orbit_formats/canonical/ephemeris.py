@@ -21,6 +21,7 @@ from orbit_formats.canonical.base import (
     metadata_from_attrs,
     parse_state_frame_arrays,
 )
+from orbit_formats.canonical.maneuver import Maneuver
 
 __all__ = ["Ephemeris"]
 
@@ -34,7 +35,10 @@ class Ephemeris(Canonical):
     ``interpolation`` / ``interpolation_degree`` carry the source ephemeris's
     interpolation hint. A multi-segment source (e.g. a multi-segment OEM) is concatenated
     into one canonical ephemeris here; the per-segment detail is preserved on the
-    ``source_native`` fidelity model.
+    ``source_native`` fidelity model. ``maneuvers`` holds the burns an OCM states (empty for
+    any other source); each carries its own frame and Δv, and rides through the conversion
+    layer but is dropped — with a named warning — by a write to a format that cannot express
+    it.
     """
 
     epochs: NDArray[np.datetime64]
@@ -42,11 +46,13 @@ class Ephemeris(Canonical):
     velocities: NDArray[np.float64]
     interpolation: str | None = None
     interpolation_degree: int | None = None
+    maneuvers: tuple[Maneuver, ...] = ()
 
     def __post_init__(self) -> None:
         self.epochs = np.asarray(self.epochs, dtype="datetime64[ns]")
         self.positions = np.asarray(self.positions, dtype=np.float64)
         self.velocities = np.asarray(self.velocities, dtype=np.float64)
+        self.maneuvers = tuple(self.maneuvers)
         if self.epochs.ndim != 1:
             raise ValueError(f"epochs must be 1-D, got shape {self.epochs.shape}")
         n = self.epochs.shape[0]
@@ -65,6 +71,7 @@ class Ephemeris(Canonical):
             self.velocities,
             self.interpolation,
             self.interpolation_degree,
+            self.maneuvers,
         )
 
     def to_dataframe(self) -> pd.DataFrame:

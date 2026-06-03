@@ -115,6 +115,9 @@ def _rotate(obj: Canonical, source_id: str, target_id: str) -> Canonical:
             velocities=velocities,
             interpolation=obj.interpolation,
             interpolation_degree=obj.interpolation_degree,
+            # The maneuvers name their own reference frame and are not rotated (that would be
+            # maneuver modelling, out of scope); they ride along verbatim.
+            maneuvers=obj.maneuvers,
             source_native=None,
         )
     if isinstance(obj, StateVector):
@@ -133,6 +136,7 @@ def _rotate(obj: Canonical, source_id: str, target_id: str) -> Canonical:
             position=positions[0],
             velocity=velocities[0],
             keplerian=None,  # the cached Keplerian set was frame-relative; drop it
+            maneuvers=obj.maneuvers,  # the burns name their own frame; carried verbatim
             source_native=None,
         )
     # A form with no Cartesian state to rotate (mean elements would need a propagation).
@@ -156,6 +160,7 @@ def _state_to_ephemeris(obj: Canonical) -> Canonical:
         velocities=obj.velocity[None, :],
         interpolation=None,
         interpolation_degree=None,
+        maneuvers=obj.maneuvers,  # the burns belong to the body; carried across the embedding
         source_native=None,
     )
 
@@ -199,6 +204,7 @@ def _ephemeris_to_state(obj: Canonical) -> Canonical:
         position=obj.positions[0],
         velocity=obj.velocities[0],
         keplerian=None,
+        maneuvers=obj.maneuvers,  # the burns belong to the body; carried across the collapse
         source_native=None,
     )
 

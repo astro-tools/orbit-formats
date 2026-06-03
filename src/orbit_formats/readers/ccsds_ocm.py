@@ -31,9 +31,11 @@ from dataclasses import dataclass, field, replace
 from typing import ClassVar, Literal
 
 import numpy as np
+from numpy.typing import NDArray
 
 from orbit_formats.canonical.ephemeris import Ephemeris
 from orbit_formats.canonical.fidelity import FidelityModel
+from orbit_formats.canonical.maneuver import Maneuver
 from orbit_formats.canonical.metadata import Metadata, Provenance
 from orbit_formats.errors import MalformedSourceError
 from orbit_formats.readers.ccsds import (
@@ -843,10 +845,11 @@ def _to_ephemeris(ocm: OcmFile) -> Ephemeris:
     """Adapt an :class:`OcmFile` into the canonical :class:`Ephemeris`.
 
     Concatenates the Cartesian trajectory blocks' states into one series (after asserting they
-    share a frame and central body), timing each line against ``EPOCH_TZERO``. A non-Cartesian
+    share a frame and central body), timing each line against ``EPOCH_TZERO``. The ``man`` blocks
+    map into the canonical ``maneuvers`` collection (one record per ``manLine``). A non-Cartesian
     trajectory, and every other block, is carried on the ``source_native`` model only — the
     canonical ephemeris holds position and velocity. An OCM with no Cartesian trajectory yields
-    an empty ephemeris whose blocks all live on ``source_native``.
+    an empty ephemeris (whose maneuvers and other blocks still live on ``source_native``).
     """
     tzero = _epoch_tzero(ocm.metadata)
     cartesian = [
@@ -882,6 +885,7 @@ def _to_ephemeris(ocm: OcmFile) -> Ephemeris:
         velocities=_float_matrix(velocities),
         interpolation=interpolation,
         interpolation_degree=degree,
+        maneuvers=_canonical_maneuvers(ocm, tzero),
     )
 
 
@@ -974,6 +978,147 @@ def _require_consistent_trajectories(blocks: list[_TrajStates]) -> None:
 
 def _as_str(value: FieldValue | None) -> str | None:
     return value if isinstance(value, str) else None
+
+
+# --- adaptation of the man blocks to the canonical maneuver record ---------------------
+
+# The MAN_COMPOSITION time tokens, and the value tokens the canonical maneuver record reads.
+# Everything else a composition can list (thrust, acceleration, deterministic-command timing,
+# per-element sigmas, deployment terms) stays on the OcmFile ``source_native`` only.
+_MAN_TIME_COLUMNS = frozenset({"TIME_ABSOLUTE", "TIME_RELATIVE"})
+_DV_COLUMNS = ("DV_X", "DV_Y", "DV_Z")
+# Δv unit token → factor to the canonical km/s. An unrecognised or absent unit defaults to
+# km/s — the canonical speed unit and the (unit-less) OPM convention — never a fabricated scale.
+_DV_TO_KM_S = {"km/s": 1.0, "m/s": 1.0e-3}
+
+
+def _canonical_maneuvers(ocm: OcmFile, tzero: np.datetime64 | None) -> tuple[Maneuver, ...]:
+    """The canonical maneuvers across every OCM ``man`` block, one record per ``manLine``."""
+    maneuvers: list[Maneuver] = []
+    for block in ocm.maneuvers:
+        maneuvers.extend(_maneuvers_from_block(block, tzero))
+    return tuple(maneuvers)
+
+
+def _maneuvers_from_block(block: OcmManeuverBlock, tzero: np.datetime64 | None) -> list[Maneuver]:
+    """Read one ``man`` block into canonical maneuvers via its ``MAN_COMPOSITION`` columns.
+
+    ``MAN_COMPOSITION`` names the columns each ``manLine`` carries; the time column places the
+    burn (absolute epoch, or seconds relative to ``EPOCH_TZERO``), ``DV_X/DV_Y/DV_Z`` give the
+    Δv (scaled to km/s via ``MAN_UNITS``), ``MAN_DURA`` the duration, and ``DELTA_MASS`` the mass
+    change. A block whose composition has no time column cannot place its burns in time, so it
+    yields no canonical record and survives on ``source_native`` alone. The block's leading
+    comments attach to the first maneuver only, so a multi-line block does not duplicate them.
+    """
+    ref_frame = _man_field(block, "MAN_REF_FRAME")
+    composition = _man_field(block, "MAN_COMPOSITION")
+    if not isinstance(ref_frame, str) or not isinstance(composition, str):
+        return []  # MAN_REF_FRAME and MAN_COMPOSITION are required keywords; guard defensively
+    columns = [token.strip() for token in composition.split(",")]
+    time_index = next((i for i, column in enumerate(columns) if column in _MAN_TIME_COLUMNS), None)
+    if time_index is None:
+        return []
+    time_kind = columns[time_index]
+    units = _man_unit_map(block, columns)
+    dv_indices = _dv_indices(columns)
+    dura_index = columns.index("MAN_DURA") if "MAN_DURA" in columns else None
+    dmass_index = columns.index("DELTA_MASS") if "DELTA_MASS" in columns else None
+
+    maneuvers: list[Maneuver] = []
+    for position, line in enumerate(block.lines):
+        tokens = line.split()
+        if len(tokens) != len(columns):
+            raise MalformedSourceError(
+                f"OCM maneuver line has {len(tokens)} value(s) but MAN_COMPOSITION names "
+                f"{len(columns)} column(s): {line!r}"
+            )
+        duration = _man_float(tokens[dura_index], "MAN_DURA") if dura_index is not None else 0.0
+        delta_v = _man_delta_v(tokens, dv_indices, units) if dv_indices is not None else None
+        delta_mass = (
+            _man_float(tokens[dmass_index], "DELTA_MASS") if dmass_index is not None else None
+        )
+        maneuvers.append(
+            Maneuver(
+                epoch_ignition=_man_epoch(tokens[time_index], time_kind, tzero),
+                ref_frame=ref_frame,
+                duration=duration,
+                delta_v=delta_v,
+                delta_mass=delta_mass,
+                comments=block.comments if position == 0 else (),
+            )
+        )
+    return maneuvers
+
+
+def _man_field(block: OcmManeuverBlock, keyword: str) -> FieldValue | None:
+    for key, value in block.fields:
+        if key == keyword:
+            return value
+    return None
+
+
+def _dv_indices(columns: list[str]) -> tuple[int, int, int] | None:
+    """The ``(DV_X, DV_Y, DV_Z)`` column indices, or ``None`` unless all three are present.
+
+    A partial Δv (some components only) is not a vector, so it is not surfaced — the block's
+    full data survives on ``source_native``.
+    """
+    if all(column in columns for column in _DV_COLUMNS):
+        x, y, z = (columns.index(column) for column in _DV_COLUMNS)
+        return x, y, z
+    return None
+
+
+def _man_unit_map(block: OcmManeuverBlock, columns: list[str]) -> dict[str, str]:
+    """Map each composition column to its ``MAN_UNITS`` token, when the counts line up.
+
+    ``MAN_UNITS`` is a comma-separated list whose tokens describe either every column or just
+    the non-time columns; a single token applies to all non-time columns. Anything else leaves
+    the map empty and the readers fall back to the canonical default unit.
+    """
+    raw = _man_field(block, "MAN_UNITS")
+    if not isinstance(raw, str):
+        return {}
+    units = [token.strip() for token in raw.split(",")]
+    non_time = [column for column in columns if column not in _MAN_TIME_COLUMNS]
+    if len(units) == len(columns):
+        return dict(zip(columns, units, strict=True))
+    if len(units) == len(non_time):
+        return dict(zip(non_time, units, strict=True))
+    if len(units) == 1 and non_time:
+        return {column: units[0] for column in non_time}
+    return {}
+
+
+def _man_delta_v(
+    tokens: list[str], dv_indices: tuple[int, int, int], units: dict[str, str]
+) -> NDArray[np.float64]:
+    components = [
+        _man_float(tokens[index], column) * _DV_TO_KM_S.get(units.get(column, "km/s"), 1.0)
+        for column, index in zip(_DV_COLUMNS, dv_indices, strict=True)
+    ]
+    return np.array(components, dtype=np.float64)
+
+
+def _man_epoch(token: str, time_kind: str, tzero: np.datetime64 | None) -> np.datetime64:
+    """An OCM maneuver ignition time: an absolute epoch, or seconds relative to ``EPOCH_TZERO``."""
+    if time_kind == "TIME_ABSOLUTE":
+        return _parse_epoch(token)
+    if tzero is None:
+        raise MalformedSourceError(
+            "OCM maneuver uses a relative time but the metadata has no EPOCH_TZERO"
+        )
+    offset_seconds = _man_float(token, "TIME_RELATIVE")
+    return tzero + np.timedelta64(round(offset_seconds * 1_000_000_000), "ns")
+
+
+def _man_float(token: str, column: str) -> float:
+    try:
+        return float(token)
+    except ValueError as exc:
+        raise MalformedSourceError(
+            f"OCM maneuver {column} value must be a number, got {token!r}"
+        ) from exc
 
 
 register_reader("ccsds-ocm", read_ocm)

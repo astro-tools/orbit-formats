@@ -15,6 +15,7 @@ from orbit_formats.canonical.base import (
     metadata_from_attrs,
     parse_state_frame_arrays,
 )
+from orbit_formats.canonical.maneuver import Maneuver
 
 __all__ = ["KeplerianElements", "StateVector"]
 
@@ -43,25 +44,30 @@ class StateVector(Canonical):
 
     ``position`` and ``velocity`` are length-3 arrays in the metadata's length / speed
     units; ``keplerian`` is an optional parallel representation populated by the
-    conversion layer. :meth:`to_dataframe` projects to the one-row canonical state frame.
+    conversion layer. ``maneuvers`` holds the burns an OPM states (empty for any other
+    source); each carries its own frame and Δv, and rides through the conversion layer
+    but is dropped — with a named warning — by a write to a format that cannot express it.
+    :meth:`to_dataframe` projects to the one-row canonical state frame.
     """
 
     epoch: np.datetime64
     position: NDArray[np.float64]
     velocity: NDArray[np.float64]
     keplerian: KeplerianElements | None = None
+    maneuvers: tuple[Maneuver, ...] = ()
 
     def __post_init__(self) -> None:
         self.epoch = self.epoch.astype("datetime64[ns]")
         self.position = np.asarray(self.position, dtype=np.float64)
         self.velocity = np.asarray(self.velocity, dtype=np.float64)
+        self.maneuvers = tuple(self.maneuvers)
         if self.position.shape != (3,):
             raise ValueError(f"position must have shape (3,), got {self.position.shape}")
         if self.velocity.shape != (3,):
             raise ValueError(f"velocity must have shape (3,), got {self.velocity.shape}")
 
     def _eq_payload(self) -> tuple[Any, ...]:
-        return (self.epoch, self.position, self.velocity, self.keplerian)
+        return (self.epoch, self.position, self.velocity, self.keplerian, self.maneuvers)
 
     def to_dataframe(self) -> pd.DataFrame:
         """Project to a one-row state frame (``Epoch`` + ``X, Y, Z, VX, VY, VZ``).

@@ -40,6 +40,7 @@ from orbit_formats.warnings import (
     DroppedField,
     LossyConversionWarning,
     PrecisionLossWarning,
+    warn_dropped_maneuvers,
     warn_lossy,
 )
 
@@ -104,6 +105,8 @@ def write_sp3(obj: Canonical, suffix: str | None = None) -> bytes:
         if native.raw_bytes is not None:
             return native.raw_bytes
         return _serialize(native)
+    # SP3 has no maneuver block: any canonical maneuvers the ephemeris carries are reported dropped.
+    warn_dropped_maneuvers(obj.maneuvers, target_format="sp3")
     return _serialize(_sp3file_from_ephemeris(obj))
 
 
