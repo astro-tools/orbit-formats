@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-03
+
+This release deepens the canonical model rather than widening the format surface: maneuvers
+become a typed part of the metamodel extracted from OPM and OCM, the attitude category gains the
+DataFrame projection every other time-series category already had, and a closed-form
+ECEF (ITRF) ↔ geodetic (WGS84) helper composes on the existing inertial → ITRF rotation for a
+full inertial → ground-track path — all under the same lossless-or-explicitly-warned contract.
+
+### Added
+
+- **`Attitude.to_dataframe()`**: project an attitude history (AEM, APM, or STK `.a`) to an
+  `Epoch` column plus the attitude type's component columns — quaternion (`Q1 Q2 Q3 QC`),
+  Euler-angle (`ANGLE_1 ANGLE_2 ANGLE_3`), or spin — one row per epoch, with the shared metadata
+  spine and the attitude-specific `attitude_type` / `frame_a` / `frame_b` tags on `df.attrs`.
+  This closes the asymmetry where `Attitude` was the only time-series category without a
+  DataFrame form; every category — ephemeris, state, mean-element set, and attitude — now projects
+  to one.
+- Canonical **`Maneuver`** record (ignition epoch, reference frame, duration, Δv, Δ-mass),
+  promoting maneuvers from a `source_native`-only detail to a typed part of the metamodel on a
+  `maneuvers` collection attached to `StateVector` (from OPM `MAN_*` blocks) and `Ephemeris` (from
+  the OCM manoeuvre blocks). Maneuvers ride verbatim through frame rotation and the single ↔ series
+  bridges; a same-format write stays byte/content-lossless via `source_native`, while a write to a
+  format with no maneuver block drops them through a named `LossyConversionWarning`.
+- **ECEF (ITRF) ↔ geodetic (WGS84)** conversion helper — `cartesian_to_geodetic` and
+  `geodetic_to_cartesian` on the convert layer: the closed-form longitude / latitude / height
+  projection that composes on top of the existing inertial → ITRF rotation for a full
+  inertial → ground-track path. A table-driven `Ellipsoid` (WGS84 by default, or a custom instance
+  for another body) and a small `GeodeticLocation` value type for a fixed site / observer
+  coordinate. Pure numpy in the implementation, cross-validated against astropy.
+
+### Fixed
+
+- Reading an OCM maneuver Δv whose stated unit is neither km/s nor m/s no longer silently reads it
+  as km/s (mis-scaling the canonical Δv, e.g. by 1000×); it now emits a `LossyConversionWarning`
+  naming the unit, once per block. An unstated unit still defaults to km/s warning-free.
+- The geodetic `Ellipsoid` now rejects physically impossible parameters at construction — a
+  non-positive axis, or a sub-unity inverse flattening — with a clear `ValueError` (naming the
+  `float('inf')` idiom for a sphere), instead of the opaque `ZeroDivisionError` or the silent
+  `NaN` coordinates they previously produced.
+
 ## [0.4.0] - 2026-06-02
 
 This release broadens the readable and writable surface to vendor and extended text encodings —
@@ -165,7 +205,8 @@ information, never a silent drop.
   lossy-conversion semantics, and the conversion-capability matrix — and a typed
   (`py.typed`), MIT-licensed package published to PyPI.
 
-[Unreleased]: https://github.com/astro-tools/orbit-formats/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/astro-tools/orbit-formats/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/astro-tools/orbit-formats/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/astro-tools/orbit-formats/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/astro-tools/orbit-formats/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/astro-tools/orbit-formats/compare/v0.1.0...v0.2.0
