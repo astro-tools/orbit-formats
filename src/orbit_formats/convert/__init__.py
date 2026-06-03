@@ -30,6 +30,12 @@ from orbit_formats.convert.elements import (
     keplerian_to_cartesian,
 )
 from orbit_formats.convert.frames import normalize_frame, rotate_state, transform_available
+from orbit_formats.convert.geodetic import (
+    Ellipsoid,
+    GeodeticLocation,
+    cartesian_to_geodetic,
+    geodetic_to_cartesian,
+)
 from orbit_formats.convert.graph import apply_frame, conversion_edges, route
 
 if TYPE_CHECKING:
@@ -38,12 +44,16 @@ if TYPE_CHECKING:
 __all__ = [
     "ConversionCapability",
     "ConversionKind",
+    "Ellipsoid",
+    "GeodeticLocation",
     "apply_frame",
     "capability_matrix",
+    "cartesian_to_geodetic",
     "cartesian_to_keplerian",
     "conversion_capability",
     "conversion_edges",
     "convert_time_scale",
+    "geodetic_to_cartesian",
     "gravitational_parameter",
     "keplerian_to_cartesian",
     "normalize_frame",
