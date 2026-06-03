@@ -176,6 +176,27 @@ def test_to_dataframe_single_epoch_apm_projects_one_row() -> None:
     np.testing.assert_allclose(df[["Q1", "Q2", "Q3", "QC"]].to_numpy(), [[0.1, 0.2, 0.3, 0.927]])
 
 
+def test_to_dataframe_of_an_empty_attitude_keeps_the_schema() -> None:
+    # A zero-row attitude (no samples) still projects to the right columns, dtypes, and attrs —
+    # just with no rows — rather than collapsing to an object/empty frame.
+    att = Attitude(
+        metadata=Metadata(object_name="SAT", time_scale="UTC"),
+        attitude_type="QUATERNION",
+        epochs=np.empty(0, dtype="datetime64[ns]"),
+        records=np.empty((0, 4), dtype=np.float64),
+        frame_a="EME2000",
+        frame_b="SC_BODY",
+    )
+    df = att.to_dataframe()
+    assert len(df) == 0
+    assert list(df.columns) == ["Epoch", "Q1", "Q2", "Q3", "QC"]
+    assert str(df["Epoch"].dtype) == "datetime64[ns]"
+    assert all(str(df[c].dtype) == "float64" for c in ["Q1", "Q2", "Q3", "QC"])
+    assert df.attrs["attitude_type"] == "QUATERNION"
+    assert df.attrs["frame_a"] == "EME2000"
+    assert df.attrs["frame_b"] == "SC_BODY"
+
+
 def test_to_dataframe_leaks_no_astropy_or_object_dtypes() -> None:
     df = _euler_attitude().to_dataframe()
     for column in df.columns:
