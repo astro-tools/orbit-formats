@@ -21,6 +21,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
 
+from orbit_formats._tle_lines import TLE_LINE_LEN, checksum_ok
 from orbit_formats.errors import UnknownFormatError
 
 __all__ = [
@@ -71,17 +72,6 @@ class FormatSpec:
 
 # --- signature detectors ---------------------------------------------------------------
 
-_TLE_LINE_LEN = 69
-
-
-def _tle_checksum_ok(line: str) -> bool:
-    """A TLE line ends with a mod-10 checksum: digits sum to themselves, ``-`` counts 1."""
-    check = line[68]
-    if not check.isdigit():
-        return False
-    total = sum(int(ch) if ch.isdigit() else 1 if ch == "-" else 0 for ch in line[:68])
-    return total % 10 == int(check)
-
 
 def _sig_tle(data: bytes, text: str | None) -> Confidence:
     if text is None:
@@ -90,7 +80,7 @@ def _sig_tle(data: bytes, text: str | None) -> Confidence:
     line2: str | None = None
     for raw in text.splitlines():
         line = raw.rstrip()
-        if len(line) != _TLE_LINE_LEN or line[1] != " ":
+        if len(line) != TLE_LINE_LEN or line[1] != " ":
             continue
         if line[0] == "1":
             line1 = line
@@ -102,7 +92,7 @@ def _sig_tle(data: bytes, text: str | None) -> Confidence:
         return Confidence.NONE
     # Matched line structure; require valid checksums and an agreeing catalog number so
     # arbitrary text that happens to start "1 " / "2 " is not mistaken for a TLE.
-    if line1[2:7] == line2[2:7] and _tle_checksum_ok(line1) and _tle_checksum_ok(line2):
+    if line1[2:7] == line2[2:7] and checksum_ok(line1) and checksum_ok(line2):
         return Confidence.HIGH
     return Confidence.NONE
 

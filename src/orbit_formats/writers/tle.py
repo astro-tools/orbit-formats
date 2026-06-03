@@ -29,6 +29,7 @@ import math
 
 import numpy as np
 
+from orbit_formats._tle_lines import checksum_digit
 from orbit_formats.canonical.base import Canonical
 from orbit_formats.canonical.elements import MeanElementSet, ensure_convertible_to_mean_format
 from orbit_formats.errors import UnsupportedConversionError
@@ -38,8 +39,6 @@ from orbit_formats.registry import register_writer
 from orbit_formats.warnings import DroppedField, LossyConversionWarning, warn_lossy
 
 __all__ = ["write_tle"]
-
-_TLE_LINE_LEN = 69
 
 # The destination extension that requests the name-annotated three-line notation.
 _THREE_LINE_SUFFIX = ".3le"
@@ -210,8 +209,7 @@ def _format_mean_motion(value: float) -> str:
 def _with_checksum(line: str) -> str:
     """Pad ``line`` to 68 characters and append its modulo-10 checksum digit."""
     body = f"{line:<68}"[:68]
-    total = sum(int(ch) if ch.isdigit() else 1 if ch == "-" else 0 for ch in body)
-    return f"{body}{total % 10}"
+    return f"{body}{checksum_digit(body)}"
 
 
 def _warn_dropped(field: str, reason: str) -> None:

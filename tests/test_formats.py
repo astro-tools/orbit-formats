@@ -11,6 +11,7 @@ import pytest
 
 from orbit_formats import UnknownFormatError
 from orbit_formats import registry as registry_module
+from orbit_formats._tle_lines import checksum_ok
 from orbit_formats.formats import (
     Confidence,
     _ccsds_signature,
@@ -19,7 +20,6 @@ from orbit_formats.formats import (
     _sig_sp3,
     _sig_stk,
     _sig_tle,
-    _tle_checksum_ok,
     extension_format,
     normalize_format,
 )
@@ -42,7 +42,7 @@ def test_text_signatures_report_no_match_on_binary_input() -> None:
 
 
 def test_tle_checksum_rejects_a_non_digit_check_character() -> None:
-    assert _tle_checksum_ok("1" + " " * 67 + "X") is False
+    assert checksum_ok("1" + " " * 67 + "X") is False
 
 
 def test_tle_signature_needs_both_lines() -> None:
