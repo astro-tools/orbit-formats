@@ -24,7 +24,7 @@ The category types are:
 | `StateVector` | one Cartesian state (position + velocity) at one epoch | yes — one row |
 | `Ephemeris` | a Cartesian state-vector time series | yes — N rows |
 | `MeanElementSet` | a mean-element set (TLE / OMM-style), mean elements at an epoch | yes — one row |
-| `Attitude` | an attitude history (CCSDS AEM / APM) | no |
+| `Attitude` | an attitude history (CCSDS AEM / APM) | yes — N rows (one for an APM) |
 | `Conjunction` | a close-approach record between two objects (CCSDS CDM) | no |
 | `Tracking` | a tracking-data set (CCSDS TDM) | no |
 | `Combined` | several member messages bundled in a combined NDM | no |
@@ -42,8 +42,9 @@ format`.
 
 The orbit categories — `StateVector`, `Ephemeris`, `MeanElementSet` — describe *where* a body
 is and project to the DataFrame. The three categories the CCSDS attitude, conjunction, and
-tracking messages read into describe something else, so they carry their own fields and have no
-DataFrame projection:
+tracking messages read into describe something else and carry their own fields. `Attitude` is a
+time series like `Ephemeris`, so it too projects to a DataFrame — its own attitude-component
+schema rather than the state schema; `Conjunction` and `Tracking` have no DataFrame projection:
 
 - **`Attitude`** (AEM / APM) — how a body is *oriented*: the rotation from one reference frame to
   another, sampled at one epoch (APM) or over a time series (AEM). `attitude_type` tags the
