@@ -12,7 +12,7 @@ type: software
 authors:
   - given-names: Dimitrije
     family-names: Jankovic
-version: 0.3.0
+version: 0.4.0
 date-released: "2026-06-02"
 license: MIT
 repository-code: "https://github.com/astro-tools/orbit-formats"
