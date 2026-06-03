@@ -48,6 +48,12 @@ _END_ATTITUDE = "END Attitude"
 _STK_VERSION = "stk.v.11.0"
 _PLACEHOLDER = "UNKNOWN"
 
+# The ScenarioEpoch a synthesised file falls back to when the attitude carries no epoch to derive
+# it from (an empty attitude). Unlike the textual placeholder it is a real instant in the valid
+# Gregorian form, so the output stays a structurally valid, re-readable ``.a``; it is otherwise
+# unused — an empty attitude has no records to offset against it. Mirrors the SP3 writer's fallback.
+_SENTINEL_EPOCH = np.datetime64("2000-01-01T12:00:00", "ns")
+
 # The data section each writable canonical attitude type is serialised under. A synthesised
 # quaternion is written scalar-last (AttitudeTimeQuaternions) — the canonical records' own
 # order — so no quaternion is reordered. ``AttitudeTimeQuatScalarFirst`` is reached only on the
@@ -97,11 +103,18 @@ def _stkfile_from_attitude(att: Attitude) -> StkAttitudeFile:
         scenario_epoch = att.epochs[0]
         meta.append(("ScenarioEpoch", _format_scenario_epoch(scenario_epoch)))
     else:
-        # With no records, ScenarioEpoch cannot be derived from the epochs; warn and placeholder.
-        # The sentinel epoch is unused — there are no records to offset against it.
-        _warn_missing("ScenarioEpoch", "the canonical attitude has no epochs to derive it from")
-        scenario_epoch = np.datetime64("2000-01-01T12:00:00", "ns")
-        meta.append(("ScenarioEpoch", _PLACEHOLDER))
+        # With no records there is no epoch to derive ScenarioEpoch from. STK requires the field,
+        # so write a sentinel instant in the valid Gregorian form (so the file stays structurally
+        # valid and re-reads) and warn that the real epoch was unavailable. The sentinel is
+        # otherwise unused — there are no records to offset against it.
+        scenario_epoch = _SENTINEL_EPOCH
+        sentinel = _format_scenario_epoch(scenario_epoch)
+        _warn_missing(
+            "ScenarioEpoch",
+            f"the canonical attitude has no epochs to derive it from; "
+            f"wrote the sentinel {sentinel}",
+        )
+        meta.append(("ScenarioEpoch", sentinel))
     meta.append(("CentralBody", _resolve_required("CentralBody", att.metadata.central_body)))
     meta.append(("CoordinateAxes", _resolve_required("CoordinateAxes", att.frame_a)))
     if att.attitude_type == "EULER_ANGLE":

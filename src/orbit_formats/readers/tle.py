@@ -28,6 +28,7 @@ from typing import ClassVar
 import numpy as np
 from sgp4.api import Satrec
 
+from orbit_formats._tle_lines import TLE_LINE_LEN, checksum_ok
 from orbit_formats.canonical.elements import SGP4_MEAN_ELEMENT_THEORY, MeanElementSet
 from orbit_formats.canonical.fidelity import FidelityModel
 from orbit_formats.canonical.metadata import Metadata, Provenance
@@ -37,9 +38,6 @@ from orbit_formats.registry import register_reader
 from orbit_formats.source import Source
 
 __all__ = ["TleCatalog", "TleRecord", "read_tle"]
-
-# A TLE element line is exactly 69 characters wide, with the line number in column 1.
-_TLE_LINE_LEN = 69
 
 # The alpha-5 alphabet: catalog field column 1 maps a digit to its value and a letter to a
 # base of 10-33, with ``I`` and ``O`` omitted (they read as ``1`` / ``0``), so the five-character
@@ -249,7 +247,7 @@ def _extract_records(text: str) -> list[tuple[str | None, str, str]]:
 
 def _is_element_line(line: str, number: str) -> bool:
     """Whether ``line`` is a TLE element line with the given line number in column 1."""
-    return len(line) == _TLE_LINE_LEN and line[0] == number and line[1] == " "
+    return len(line) == TLE_LINE_LEN and line[0] == number and line[1] == " "
 
 
 def _strip_name_marker(line: str) -> str:
@@ -275,21 +273,12 @@ def _decode_alpha5(field: str) -> int:
 def _validate(line1: str, line2: str) -> None:
     """Reject a structurally-located element set whose content is broken."""
     for number, line in ((1, line1), (2, line2)):
-        if not _checksum_ok(line):
+        if not checksum_ok(line):
             raise MalformedSourceError(f"TLE line {number} has an invalid checksum")
     if line1[2:7] != line2[2:7]:
         raise MalformedSourceError(
             f"TLE line 1 and line 2 satellite numbers disagree ({line1[2:7]!r} vs {line2[2:7]!r})"
         )
-
-
-def _checksum_ok(line: str) -> bool:
-    """A TLE line ends with a mod-10 checksum: digits sum to themselves, ``-`` counts 1."""
-    check = line[68]
-    if not check.isdigit():
-        return False
-    total = sum(int(ch) if ch.isdigit() else 1 if ch == "-" else 0 for ch in line[:68])
-    return total % 10 == int(check)
 
 
 def _parse(line1: str, line2: str) -> Satrec:

@@ -369,9 +369,14 @@ def test_synthesised_write_of_an_empty_attitude_warns_for_the_scenario_epoch() -
         frame_a="J2000",
     )
     with pytest.warns(Warning) as caught:
-        write_stk_attitude(att)
+        out = write_stk_attitude(att)
     warned = {field for record in caught for field in getattr(record.message, "fields", ())}
     assert warned == {"ScenarioEpoch"}
+    # The sentinel ScenarioEpoch keeps the file structurally valid, so it re-reads as an empty
+    # attitude rather than a placeholder STK cannot parse.
+    reread = read(out)
+    assert isinstance(reread, Attitude)
+    assert len(reread) == 0
 
 
 def test_unrepresentable_fields_warn_when_present() -> None:
