@@ -241,9 +241,13 @@ def _serialize(sp3: Sp3File) -> bytes:
     blocks, the ``%c`` / ``%f`` / ``%i`` lines, and the ``/*`` comments), then one ``*`` epoch
     record followed by a ``P`` position record (and, in ``V`` mode, a ``V`` velocity record) per
     satellite. A value that overflows SP3's fixed field width is truncated and named once in a
-    :class:`~orbit_formats.warnings.PrecisionLossWarning`.
+    :class:`~orbit_formats.warnings.PrecisionLossWarning`; a non-finite component (NaN / inf — a
+    velocity sample the canonical ephemeris left absent) has no SP3 representation, is written as
+    zero, and is named once in a :class:`~orbit_formats.warnings.LossyConversionWarning` — never a
+    silent loss.
     """
     truncated: set[str] = set()
+    nonfinite: set[str] = set()
     lines: list[str] = [_header_line1(sp3), _header_line2(sp3)]
     lines.extend(_satellite_block(sp3.sat_ids))
     lines.extend(_accuracy_block(sp3.sat_ids, sp3.accuracy_codes))
@@ -257,10 +261,21 @@ def _serialize(sp3: Sp3File) -> bytes:
     for index in range(sp3.epochs.shape[0]):
         lines.append(_epoch_line(sp3.epochs[index]))
         for sat_id in sp3.sat_ids:
-            lines.append(_position_record(sp3, sat_id, index, truncated))
+            lines.append(_position_record(sp3, sat_id, index, truncated, nonfinite))
             if sp3.mode == "V" and sp3.velocities is not None:
-                lines.append(_velocity_record(sp3, sat_id, index, truncated))
+                lines.append(_velocity_record(sp3, sat_id, index, truncated, nonfinite))
     lines.append("EOF")
+    if nonfinite:
+        warn_lossy(
+            LossyConversionWarning(
+                "non-finite state components have no SP3 representation and were written as zero",
+                dropped=tuple(
+                    DroppedField(label, "a non-finite (NaN / inf) value was written as 0.000000")
+                    for label in sorted(nonfinite)
+                ),
+            ),
+            stacklevel=3,
+        )
     if truncated:
         warn_lossy(
             PrecisionLossWarning(
@@ -345,28 +360,38 @@ def _epoch_line(epoch: np.datetime64) -> str:
     return f"*  {year:4d} {month:2d} {day:2d} {hour:2d} {minute:2d} {second:11.8f}"
 
 
-def _position_record(sp3: Sp3File, sat_id: str, index: int, truncated: set[str]) -> str:
+def _position_record(
+    sp3: Sp3File, sat_id: str, index: int, truncated: set[str], nonfinite: set[str]
+) -> str:
     x, y, z = sp3.positions[sat_id][index]
     clock = sp3.clocks[sat_id][index]
-    body = "".join(_state(value, "position", truncated) for value in (x, y, z)) + _state(
-        clock, "clock", truncated
+    body = "".join(_state(value, "position", truncated, nonfinite) for value in (x, y, z)) + _state(
+        clock, "clock", truncated, nonfinite
     )
     return f"P{sat_id}{body}"
 
 
-def _velocity_record(sp3: Sp3File, sat_id: str, index: int, truncated: set[str]) -> str:
+def _velocity_record(
+    sp3: Sp3File, sat_id: str, index: int, truncated: set[str], nonfinite: set[str]
+) -> str:
     assert sp3.velocities is not None
     vx, vy, vz = (component * _KM_S_TO_DM_S for component in sp3.velocities[sat_id][index])
     rate = sp3.clock_rates[sat_id][index] if sp3.clock_rates is not None else _MISSING_CLOCK
-    body = "".join(_state(value, "velocity", truncated) for value in (vx, vy, vz)) + _state(
-        rate, "clock rate", truncated
-    )
+    body = "".join(
+        _state(value, "velocity", truncated, nonfinite) for value in (vx, vy, vz)
+    ) + _state(rate, "clock rate", truncated, nonfinite)
     return f"V{sat_id}{body}"
 
 
-def _state(value: float, label: str, truncated: set[str]) -> str:
-    """Format one state column as F14.6; record an overflow under ``label`` for one warning."""
+def _state(value: float, label: str, truncated: set[str], nonfinite: set[str]) -> str:
+    """Format one state column as F14.6.
+
+    A non-finite component (NaN / inf) has no SP3 representation, so it is written as zero and
+    recorded under ``label`` for one no-silent-loss warning. An overflow of the fixed F14.6 width
+    is narrowed and likewise recorded under ``label`` for one precision warning.
+    """
     if not np.isfinite(value):
+        nonfinite.add(label)
         value = 0.0
     text = f"{float(value):{_STATE_WIDTH}.{_STATE_DP}f}"
     if len(text) <= _STATE_WIDTH:

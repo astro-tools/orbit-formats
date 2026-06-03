@@ -26,7 +26,7 @@ from orbit_formats import (
 )
 from orbit_formats.readers.sp3 import Sp3File
 from orbit_formats.registry import get_writer
-from orbit_formats.warnings import PrecisionLossWarning
+from orbit_formats.warnings import LossyConversionWarning, PrecisionLossWarning
 from orbit_formats.writers.sp3 import write_sp3
 
 DATA = Path(__file__).parent / "data" / "sp3"
@@ -219,6 +219,28 @@ def test_synthesised_write_warns_on_field_width_truncation() -> None:
     with pytest.warns(Warning) as caught:
         out = write_sp3(eph)
     assert any(isinstance(record.message, PrecisionLossWarning) for record in caught)
+    assert detect_format(out) == "sp3"  # still a structurally valid SP3 file
+
+
+def test_synthesised_write_warns_when_a_non_finite_velocity_is_written_as_zero() -> None:
+    # A velocity sample the canonical ephemeris left absent (NaN) sits among finite ones, so the
+    # writer keeps V mode. SP3 has no missing-velocity sentinel, so the absent row is written as
+    # zero — but never silently: the no-silent-loss contract names it.
+    eph = Ephemeris(
+        metadata=Metadata(object_name="G01", reference_frame="ITRF", time_scale="GPS"),
+        epochs=np.array(["2024-01-01T00:00:00", "2024-01-01T00:15:00"], dtype="datetime64[ns]"),
+        positions=np.array([[7000.0, 0.0, 0.0], [6999.0, 10.0, 5.0]]),
+        velocities=np.array([[1.0, 7.5, 0.1], [np.nan, np.nan, np.nan]]),
+    )
+    with pytest.warns(LossyConversionWarning) as caught:
+        out = write_sp3(eph)
+    assert any(
+        "velocity" in record.message.fields
+        for record in caught
+        if isinstance(record.message, LossyConversionWarning)
+    )
+    velocity_rows = [line for line in out.decode().splitlines() if line.startswith("VG01")]
+    assert velocity_rows[1].split()[1:4] == ["0.000000", "0.000000", "0.000000"]
     assert detect_format(out) == "sp3"  # still a structurally valid SP3 file
 
 
