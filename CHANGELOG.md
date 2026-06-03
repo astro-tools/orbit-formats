@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-02
+
+This release broadens the readable and writable surface to vendor and extended text encodings —
+STK attitude, the Celestrak / Space-Track flat OMM, and the name-annotated / catalogue / alpha-5
+TLE variants — and completes SP3 with a writer, all under the same lossless-or-explicitly-warned
+contract. The proprietary-binary non-goal (GMAT Code-500, JPL navigation databases, vendor OEM
+extensions) is unchanged.
+
+### Added
+
+- STK **attitude (`.a`)** reader and writer, routed through the canonical `Attitude` category — a
+  second, non-CCSDS exercise of that category after AEM/APM. Quaternion (scalar-last and
+  scalar-first) and Euler-angle sections map faithfully; non-quaternion/Euler sections (YPR, DCM,
+  angular-velocity, direction-vector, spin) are rejected rather than guessed. The required
+  `END Attitude` terminator is read as optional (real STK output routinely omits it) and written.
+- CCSDS **OMM in the Celestrak / Space-Track flat JSON (`omm-json`) and CSV (`omm-csv`)**
+  encodings, reader and writer — alternative encodings of the existing mean-element form, sharing
+  the CCSDS OMM fidelity model and adapter rather than introducing a new canonical form or
+  conversion edge. A catalogue file rides whole on `source_native`, materialising the full
+  mean-element sequence.
+- **Name-annotated 3LE, multi-set catalogue, and alpha-5** TLE variants: the optional leading name
+  line populates `metadata.object_name`; a multi-set file parses into a catalogue that materialises
+  every set in order; the alpha-5 extended designator decodes to a numeric id (which also unbreaks
+  alpha-5 TLE → OMM enrichment). A `.3le` destination requests the leading name line, warning when
+  the source has no name rather than fabricating one.
+- **SP3 writer**, completing the read-only SP3 from v0.2: a canonical `Ephemeris` serialises to a
+  valid fixed-column SP3-d file across the byte-lossless, content-lossless, and synthesised tiers.
+  The SP3-required satellite clock columns have no canonical slot, so they are written as the SP3
+  missing-value sentinel and named in a warning; a coordinate overflowing SP3's fixed field width
+  is truncated with a `PrecisionLossWarning`.
+
+### Fixed
+
+- The SP3 writer no longer silently coerces a non-finite state component (NaN / inf — e.g. a
+  velocity sample the canonical ephemeris left absent) to `0.0`; every coerced component is now
+  surfaced through a structured `LossyConversionWarning`.
+- Synthesising an STK `.a` from an empty `Attitude` no longer writes an invalid
+  `ScenarioEpoch UNKNOWN` that the file could not re-read; it now writes a valid sentinel instant
+  (still warning the real epoch was unavailable), so the `.a` stays structurally valid and
+  re-reads.
+
 ## [0.3.0] - 2026-06-02
 
 This release completes the CCSDS NDM family and broadens the canonical model beyond orbits:
@@ -124,6 +165,8 @@ information, never a silent drop.
   lossy-conversion semantics, and the conversion-capability matrix — and a typed
   (`py.typed`), MIT-licensed package published to PyPI.
 
-[Unreleased]: https://github.com/astro-tools/orbit-formats/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/astro-tools/orbit-formats/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/astro-tools/orbit-formats/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/astro-tools/orbit-formats/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/astro-tools/orbit-formats/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/astro-tools/orbit-formats/releases/tag/v0.1.0
