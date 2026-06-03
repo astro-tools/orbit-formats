@@ -35,7 +35,12 @@ from orbit_formats.readers.ccsds_opm import (
     OpmStateVector,
 )
 from orbit_formats.registry import register_writer
-from orbit_formats.warnings import DroppedField, LossyConversionWarning, warn_lossy
+from orbit_formats.warnings import (
+    DroppedField,
+    LossyConversionWarning,
+    warn_dropped_maneuvers,
+    warn_lossy,
+)
 from orbit_formats.writers.oem import _comment_lines, _format_epoch, _format_float
 
 __all__ = ["write_opm"]
@@ -66,6 +71,9 @@ def write_opm(obj: Canonical, suffix: str | None = None) -> bytes:
         if native.raw_bytes is not None and notation == native.serialization:
             return native.raw_bytes
         return _serialize_opmfile(native, notation)
+    # Synthesising from a non-OPM state: the synthesised OPM holds only the state and metadata,
+    # so any canonical maneuvers the object carries cannot be serialised and are reported dropped.
+    warn_dropped_maneuvers(obj.maneuvers, target_format="ccsds-opm")
     return _serialize_opmfile(_opmfile_from_state_vector(obj), requested or "kvn")
 
 

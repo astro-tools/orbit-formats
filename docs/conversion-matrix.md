@@ -108,19 +108,23 @@ of scope.
 
 ### State target — `ccsds-opm`
 
-A `ccsds-opm` round-trips losslessly. An ephemeris source (`ccsds-oem` / `stk-ephemeris` / `sp3` /
-`gmat-report` / `ccsds-ocm` / `spk`) collapses to the state at its **first epoch**; for a
-multi-sample series that warns, naming the dropped epochs (and any interpolation hint). A
-one-row `gmat-report` or a GLONASS `rinex-nav` reads directly as a state and round-trips like an
-OPM. A mean-element set to a state needs a propagation, out of scope.
+A `ccsds-opm` round-trips losslessly, carrying its own maneuvers back from `source_native`. An
+ephemeris source (`ccsds-oem` / `stk-ephemeris` / `sp3` / `gmat-report` / `ccsds-ocm` / `spk`)
+collapses to the state at its **first epoch**; for a multi-sample series that warns, naming the
+dropped epochs (and any interpolation hint). A synthesised OPM holds only the state and metadata,
+so maneuvers an OCM source carries are dropped with a warning naming `maneuvers`. A one-row
+`gmat-report` or a GLONASS `rinex-nav` reads directly as a state and round-trips like an OPM. A
+mean-element set to a state needs a propagation, out of scope.
 
 ### Ephemeris targets — `ccsds-oem`, `stk-ephemeris`, `ccsds-ocm`, `spk`, `sp3`
 
 These five share the ephemeris form, so they convert into one another carrying the states, frame,
-central body, and interpolation hint; format-specific extras a reader parks on `source_native` (an
-OEM's covariance, an OPM's maneuvers, SP3's clocks and other satellites) are not carried, since the
-canonical ephemeris never held them. Each target warns for the fields *it* requires that the
-canonical ephemeris does not supply:
+central body, and interpolation hint. Format-specific extras a reader parks on `source_native` — an
+OEM's covariance, SP3's clocks and other satellites — are not carried, since the canonical
+ephemeris never held them. Maneuvers an OCM states (or, through the single → series bridge, an OPM)
+*are* on the canonical object, but none of these five formats has a maneuver block, so a write
+drops them with a warning naming `maneuvers`. Each target also warns for the fields *it* requires
+that the canonical ephemeris does not supply:
 
 - **`ccsds-oem`** requires `OBJECT_NAME` and `OBJECT_ID`; an STK, SP3, or GMAT source that lacks
   them gets placeholders, each named.
@@ -140,8 +144,9 @@ canonical ephemeris does not supply:
   byte-identical.
 
 A single state (`ccsds-opm`, a one-row report) embeds as a length-1 ephemeris, so it converts into
-`ccsds-oem` / `stk-ephemeris` / `ccsds-ocm` losslessly (those accept a one-sample ephemeris). A
-mean-element set to an ephemeris needs a propagation, out of scope.
+`ccsds-oem` / `stk-ephemeris` / `ccsds-ocm` (those accept a one-sample ephemeris); apart from any
+maneuvers it carries — dropped as above — the conversion is lossless. A mean-element set to an
+ephemeris needs a propagation, out of scope.
 
 ### Attitude targets — `ccsds-aem`, `ccsds-apm`, `stk-attitude`
 

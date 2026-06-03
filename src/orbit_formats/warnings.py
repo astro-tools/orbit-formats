@@ -26,6 +26,7 @@ __all__ = [
     "MissingFieldWarning",
     "ModelApproximationWarning",
     "PrecisionLossWarning",
+    "warn_dropped_maneuvers",
     "warn_lossy",
 ]
 
@@ -166,3 +167,27 @@ def warn_lossy(warning: LossyConversionWarning, *, stacklevel: int = 1) -> None:
     :func:`warn_lossy`, so the warning is attributed to the conversion, not to this helper.
     """
     warnings.warn(warning, stacklevel=stacklevel + 1)
+
+
+def warn_dropped_maneuvers(
+    maneuvers: Sequence[object], *, target_format: str, stacklevel: int = 2
+) -> None:
+    """Report canonical maneuvers a write to ``target_format`` cannot carry, if any are present.
+
+    The burns a :class:`~orbit_formats.canonical.state.StateVector` or
+    :class:`~orbit_formats.canonical.ephemeris.Ephemeris` carries are recovered on a same-format
+    write from the ``source_native`` fidelity model; a write to any other format cannot serialise
+    them, so this names the loss through :func:`warn_lossy` rather than dropping it in silence. A
+    no-op when ``maneuvers`` is empty — the common case, since only an OPM or OCM populates them.
+    Called from a writer's synthesised-output path, so the default ``stacklevel`` attributes the
+    warning to the caller of the public ``write_*`` function.
+    """
+    if maneuvers:
+        warn_lossy(
+            DroppedFieldWarning(
+                "maneuvers",
+                target_format=target_format,
+                reason=f"{target_format} cannot serialise the canonical maneuver records",
+            ),
+            stacklevel=stacklevel + 1,
+        )

@@ -26,6 +26,7 @@ from typing import ClassVar, Literal
 import numpy as np
 
 from orbit_formats.canonical.fidelity import FidelityModel
+from orbit_formats.canonical.maneuver import Maneuver
 from orbit_formats.canonical.metadata import Metadata, Provenance
 from orbit_formats.canonical.state import KeplerianElements, StateVector
 from orbit_formats.errors import MalformedSourceError
@@ -550,9 +551,10 @@ def _to_state_vector(opm: OpmFile) -> StateVector:
 
     The mandatory Cartesian state vector becomes the canonical position / velocity; the
     osculating Keplerian block, when it states a true anomaly, populates the optional
-    canonical ``keplerian`` (the canonical form holds a true-anomaly representation). The
-    covariance, maneuver, spacecraft, and full Keplerian blocks the canonical state cannot
-    hold ride along on ``source_native`` (the whole :class:`OpmFile`), so nothing is lost.
+    canonical ``keplerian`` (the canonical form holds a true-anomaly representation); the
+    maneuver blocks map into the canonical ``maneuvers`` collection. The covariance,
+    spacecraft, and full Keplerian blocks the canonical state cannot hold ride along on
+    ``source_native`` (the whole :class:`OpmFile`), so nothing is lost.
     """
     md = opm.metadata
     metadata = Metadata(
@@ -572,6 +574,26 @@ def _to_state_vector(opm: OpmFile) -> StateVector:
         position=np.array([sv.x, sv.y, sv.z], dtype=np.float64),
         velocity=np.array([sv.x_dot, sv.y_dot, sv.z_dot], dtype=np.float64),
         keplerian=_canonical_keplerian(opm.keplerian),
+        maneuvers=tuple(_canonical_maneuver(man) for man in opm.maneuvers),
+    )
+
+
+def _canonical_maneuver(maneuver: OpmManeuver) -> Maneuver:
+    """The canonical view of one OPM maneuver block.
+
+    Every OPM maneuver states all of the canonical fields directly: the ignition epoch, the
+    duration (``0`` for an impulsive burn), the frame, the three Δv components (km/s), and the
+    Δ-mass (kg). Nothing is approximated — the mapping is one-to-one.
+    """
+    return Maneuver(
+        epoch_ignition=maneuver.man_epoch_ignition,
+        ref_frame=maneuver.man_ref_frame,
+        duration=maneuver.man_duration,
+        delta_v=np.array(
+            [maneuver.man_dv_1, maneuver.man_dv_2, maneuver.man_dv_3], dtype=np.float64
+        ),
+        delta_mass=maneuver.man_delta_mass,
+        comments=maneuver.comments,
     )
 
 

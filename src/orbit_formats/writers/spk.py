@@ -37,7 +37,12 @@ from orbit_formats.convert.time import convert_time_scale
 from orbit_formats.errors import UnsupportedConversionError
 from orbit_formats.readers.spk import SpkFile, SpkSegment
 from orbit_formats.registry import register_writer
-from orbit_formats.warnings import DroppedField, LossyConversionWarning, warn_lossy
+from orbit_formats.warnings import (
+    DroppedField,
+    LossyConversionWarning,
+    warn_dropped_maneuvers,
+    warn_lossy,
+)
 
 __all__ = ["write_spk"]
 
@@ -79,6 +84,8 @@ def write_spk(obj: Canonical, suffix: str | None = None) -> bytes:
         if native.raw_bytes is not None:
             return native.raw_bytes
         return _serialize(spice, native.segments)
+    # SPK has no maneuver block: any canonical maneuvers the ephemeris carries are reported dropped.
+    warn_dropped_maneuvers(obj.maneuvers, target_format="spk")
     return _serialize(spice, (_segment_from_ephemeris(spice, obj),))
 
 

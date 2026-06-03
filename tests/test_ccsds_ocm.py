@@ -15,7 +15,16 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from orbit_formats import Ephemeris, MalformedSourceError, Metadata, Provenance, read
+from orbit_formats import (
+    Ephemeris,
+    LossyConversionWarning,
+    MalformedSourceError,
+    Metadata,
+    Provenance,
+    convert,
+    read,
+    write,
+)
 from orbit_formats.readers.ccsds_ocm import OcmFile, Quantity
 from orbit_formats.writers.ocm import write_ocm
 
@@ -38,6 +47,63 @@ TRAJ_REF_FRAME = EME2000
 TRAJ_TYPE = KEPLERIAN
 0.0 6800.0 0.001 51.6 247.0 130.0 325.0
 TRAJ_STOP
+"""
+
+
+# A man block whose composition carries duration, mass change, and m/s Δv across two manLines —
+# exercising MAN_DURA / DELTA_MASS extraction, the m/s → km/s scaling, and one record per line.
+_OCM_MANEUVERS = b"""CCSDS_OCM_VERS = 3.0
+ORIGINATOR = ASTRO-TOOLS
+
+META_START
+TIME_SYSTEM = UTC
+EPOCH_TZERO = 2024-01-01T00:00:00
+META_STOP
+
+TRAJ_START
+CENTER_NAME = EARTH
+TRAJ_REF_FRAME = EME2000
+TRAJ_TYPE = CARTPV
+0.0 7000.0 0.0 0.0 0.0 7.5 0.0
+TRAJ_STOP
+
+MAN_START
+MAN_ID = MAN-1
+MAN_DEVICE_ID = THR-1
+MAN_REF_FRAME = RTN
+DC_TYPE = TIME
+MAN_COMPOSITION = TIME_RELATIVE,MAN_DURA,DELTA_MASS,DV_X,DV_Y,DV_Z
+MAN_UNITS = s,kg,m/s,m/s,m/s
+60.0 30.0 -1.5 10.0 0.0 0.0
+120.0 0.0 -0.5 0.0 5.0 0.0
+MAN_STOP
+"""
+
+# A man block timed against an absolute epoch whose composition carries no Δv (only thrust, which
+# the canonical record does not model) and no MAN_UNITS — the record still places the burn in time.
+_OCM_ABSOLUTE_NO_DV = b"""CCSDS_OCM_VERS = 3.0
+ORIGINATOR = ASTRO-TOOLS
+
+META_START
+TIME_SYSTEM = UTC
+EPOCH_TZERO = 2024-01-01T00:00:00
+META_STOP
+
+TRAJ_START
+CENTER_NAME = EARTH
+TRAJ_REF_FRAME = EME2000
+TRAJ_TYPE = CARTPV
+0.0 7000.0 0.0 0.0 0.0 7.5 0.0
+TRAJ_STOP
+
+MAN_START
+MAN_ID = MAN-1
+MAN_DEVICE_ID = THR-1
+MAN_REF_FRAME = RTN
+DC_TYPE = TIME
+MAN_COMPOSITION = TIME_ABSOLUTE,THR_X,THR_Y,THR_Z
+2024-01-01T02:00:00 0.5 0.0 0.0
+MAN_STOP
 """
 
 
@@ -86,6 +152,100 @@ def test_reader_carries_every_block_on_source_native() -> None:
     # the covariance and maneuver data lines survive verbatim on the fidelity model
     assert native.covariances[0].lines[-1] == "0.0 0.0 0.0 0.0 0.0 0.0001"
     assert native.maneuvers[0].lines == ("1800.0 0.0 0.0 0.012",)
+
+
+def test_read_exposes_maneuvers_on_the_canonical_ephemeris() -> None:
+    eph = read(GOLDEN_KVN.read_bytes())
+    assert isinstance(eph, Ephemeris)
+    assert len(eph.maneuvers) == 1
+    (man,) = eph.maneuvers
+    # TIME_RELATIVE 1800 s after EPOCH_TZERO 2024-03-12T00:00:00.
+    assert man.epoch_ignition == np.datetime64("2024-03-12T00:30:00", "ns")
+    assert man.ref_frame == "RTN"
+    assert man.duration == 0.0
+    assert man.delta_v == pytest.approx([0.0, 0.0, 0.012])
+    assert man.delta_mass is None  # the composition states no DELTA_MASS column
+    assert man.comments == ("stationkeeping burn",)
+
+
+def test_man_composition_reads_duration_mass_and_scales_m_per_s_delta_v() -> None:
+    eph = read(_OCM_MANEUVERS)
+    assert isinstance(eph, Ephemeris)
+    assert len(eph.maneuvers) == 2  # one canonical record per manLine
+    first, second = eph.maneuvers
+    assert first.epoch_ignition == np.datetime64("2024-01-01T00:01:00", "ns")
+    assert first.duration == pytest.approx(30.0)
+    assert first.delta_mass == pytest.approx(-1.5)
+    assert first.delta_v == pytest.approx([0.01, 0.0, 0.0])  # 10 m/s → km/s
+    assert second.epoch_ignition == np.datetime64("2024-01-01T00:02:00", "ns")
+    assert second.duration == 0.0
+    assert second.delta_v == pytest.approx([0.0, 0.005, 0.0])  # 5 m/s → km/s
+
+
+def test_man_block_without_a_delta_v_column_still_places_the_burn() -> None:
+    eph = read(_OCM_ABSOLUTE_NO_DV)
+    assert isinstance(eph, Ephemeris)
+    (man,) = eph.maneuvers
+    assert man.epoch_ignition == np.datetime64("2024-01-01T02:00:00", "ns")  # TIME_ABSOLUTE
+    assert man.ref_frame == "RTN"
+    assert man.delta_v is None  # thrust columns are not modelled on the canonical record
+    assert man.duration == 0.0
+
+
+def test_a_maneuver_line_with_the_wrong_column_count_is_rejected() -> None:
+    bad = _OCM_MANEUVERS.replace(b"60.0 30.0 -1.5 10.0 0.0 0.0", b"60.0 30.0 -1.5")
+    with pytest.raises(MalformedSourceError, match="MAN_COMPOSITION names"):
+        read(bad)
+
+
+def test_a_non_numeric_maneuver_value_is_rejected() -> None:
+    bad = _OCM_MANEUVERS.replace(b"60.0 30.0 -1.5 10.0 0.0 0.0", b"60.0 30.0 -1.5 oops 0.0 0.0")
+    with pytest.raises(MalformedSourceError, match="DV_X value must be a number"):
+        read(bad)
+
+
+def test_a_man_block_without_a_time_column_yields_no_canonical_record() -> None:
+    # A composition with no time column cannot place the burn in time, so the block contributes no
+    # canonical maneuver — it still survives verbatim on the fidelity model.
+    no_time = _OCM_ABSOLUTE_NO_DV.replace(
+        b"MAN_COMPOSITION = TIME_ABSOLUTE,THR_X,THR_Y,THR_Z\n2024-01-01T02:00:00 0.5 0.0 0.0",
+        b"MAN_COMPOSITION = THR_X,THR_Y,THR_Z\n0.5 0.0 0.0",
+    )
+    eph = read(no_time)
+    assert isinstance(eph, Ephemeris)
+    assert eph.maneuvers == ()
+    native = eph.source_native
+    assert isinstance(native, OcmFile)
+    assert len(native.maneuvers) == 1
+
+
+def test_man_units_may_list_a_token_per_column_including_time() -> None:
+    # MAN_UNITS with one token per composition column (the time column included) still scales Δv.
+    per_column = _OCM_MANEUVERS.replace(
+        b"MAN_UNITS = s,kg,m/s,m/s,m/s", b"MAN_UNITS = s,s,kg,m/s,m/s,m/s"
+    )
+    eph = read(per_column)
+    assert isinstance(eph, Ephemeris)
+    assert eph.maneuvers[0].delta_v == pytest.approx([0.01, 0.0, 0.0])  # 10 m/s → km/s
+
+
+def test_mismatched_man_units_count_falls_back_to_canonical_km_per_s() -> None:
+    # A MAN_UNITS list matching neither the column count nor the non-time count is ignored, and Δv
+    # is read in the canonical km/s (no scaling) rather than guessing a unit.
+    mismatched = _OCM_MANEUVERS.replace(b"MAN_UNITS = s,kg,m/s,m/s,m/s", b"MAN_UNITS = s,kg")
+    eph = read(mismatched)
+    assert isinstance(eph, Ephemeris)
+    assert eph.maneuvers[0].delta_v == pytest.approx([10.0, 0.0, 0.0])  # treated as km/s
+
+
+def test_cross_format_write_drops_maneuvers_naming_the_loss(tmp_path: Path) -> None:
+    # OEM has no maneuver block, so converting the maneuver-bearing OCM and writing it must report
+    # the maneuvers as dropped rather than lose them silently.
+    eph = read(GOLDEN_KVN.read_bytes())
+    with pytest.warns(LossyConversionWarning) as record:
+        write(convert(eph, to="ccsds-oem"), tmp_path / "out.oem")
+    dropped = {field.name for warning in record for field in warning.message.dropped}  # type: ignore[union-attr]
+    assert "maneuvers" in dropped
 
 
 def test_dimensioned_metadata_value_parses_with_its_unit() -> None:

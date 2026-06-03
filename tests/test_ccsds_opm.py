@@ -14,9 +14,12 @@ import numpy as np
 import pytest
 
 from orbit_formats import (
+    LossyConversionWarning,
     MalformedSourceError,
+    Maneuver,
     Metadata,
     StateVector,
+    convert,
     detect_format,
     read,
     write,
@@ -129,6 +132,22 @@ def test_golden_preserves_spacecraft_covariance_and_maneuvers() -> None:
     assert second.man_ref_frame == "RTN"
     assert second.man_dv_1 == pytest.approx(0.001)
     assert opm.user_defined == (("INTLDES", "1998-057A"),)
+
+
+def test_read_exposes_maneuvers_on_the_canonical_state() -> None:
+    state = read(GOLDEN_KVN.read_bytes())
+    assert isinstance(state, StateVector)
+    assert len(state.maneuvers) == 2
+    first, second = state.maneuvers
+    assert first.epoch_ignition == np.datetime64("2020-03-05T10:31:36.871", "ns")
+    assert first.ref_frame == "EME2000"
+    assert first.duration == pytest.approx(286.0)
+    assert first.delta_v == pytest.approx([0.0, 0.0, -0.001])
+    assert first.delta_mass == pytest.approx(-3.0)
+    assert first.comments == ("first maneuver: orbit-raising",)
+    assert second.ref_frame == "RTN"
+    assert second.duration == 0.0  # impulsive
+    assert second.delta_v == pytest.approx([0.001, 0.0, 0.0])
 
 
 def test_a_mean_anomaly_keplerian_block_leaves_canonical_keplerian_unset() -> None:
@@ -283,3 +302,42 @@ def test_non_state_vector_cannot_be_written_as_opm() -> None:
 def test_same_format_write_loses_nothing(assert_no_silent_loss: Callable[..., None]) -> None:
     state = read(GOLDEN_KVN.read_bytes())
     assert_no_silent_loss(lambda: write_opm(state, ".opm"), loses=False)
+
+
+def test_cross_format_write_drops_maneuvers_naming_the_loss(tmp_path: Path) -> None:
+    # OEM (an ephemeris format) has no maneuver block, so converting the maneuver-bearing OPM
+    # and writing it must report the maneuvers as dropped rather than lose them silently.
+    ephemeris = convert(read(GOLDEN_KVN.read_bytes()), to="ccsds-oem")
+    with pytest.warns(LossyConversionWarning) as record:
+        write(ephemeris, tmp_path / "out.oem")
+    dropped = {field.name for warning in record for field in warning.message.dropped}  # type: ignore[union-attr]
+    assert "maneuvers" in dropped
+
+
+def test_synthesised_opm_write_drops_maneuvers_naming_the_loss() -> None:
+    # A StateVector carrying maneuvers but no OpmFile source_native: the synthesised OPM holds
+    # only the state and metadata, so the maneuvers are dropped — and named. Metadata is complete,
+    # so maneuvers is the only loss.
+    state = StateVector(
+        metadata=Metadata(
+            object_name="SAT",
+            object_id="2024-001A",
+            central_body="EARTH",
+            reference_frame="EME2000",
+            time_scale="UTC",
+        ),
+        epoch=np.datetime64("2024-01-01T00:00:00", "ns"),
+        position=np.array([7000.0, 0.0, 0.0]),
+        velocity=np.array([0.0, 7.5, 0.0]),
+        maneuvers=(
+            Maneuver(
+                epoch_ignition=np.datetime64("2024-01-01T01:00:00", "ns"),
+                ref_frame="RTN",
+                delta_v=np.array([0.001, 0.0, 0.0]),
+            ),
+        ),
+    )
+    with pytest.warns(LossyConversionWarning) as record:
+        write_opm(state, ".opm")
+    dropped = {field.name for warning in record for field in warning.message.dropped}  # type: ignore[union-attr]
+    assert dropped == {"maneuvers"}
