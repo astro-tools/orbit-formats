@@ -178,5 +178,22 @@ DataFrame. `StateVector.to_dataframe()` produces the same schema with a single r
 `Eccentricity`, `Inclination`, `RAAN`, `ArgPeriapsis`, `MeanAnomaly`, `BStar`,
 `MeanMotionDot`, `MeanMotionDdot`).
 
+`Attitude.to_dataframe()` projects an attitude time series the same way, so every time-series
+category — `Ephemeris`, `StateVector`, `MeanElementSet`, and `Attitude` — has a DataFrame form.
+Its columns are `Epoch` plus the component columns of the attitude's representation: `Q1`, `Q2`,
+`Q3`, `QC` for a `QUATERNION`, `ANGLE_1`, `ANGLE_2`, `ANGLE_3` for an `EULER_ANGLE`, and
+`SPIN_ALPHA`, `SPIN_DELTA`, `SPIN_ANGLE`, `SPIN_ANGLE_VEL` for a `SPIN` — one row per epoch (many
+for an AEM history, one for an APM). Its `attrs` carry the same metadata spine plus the
+attitude-specific `attitude_type` and the `frame_a` / `frame_b` / `euler_rot_seq` tags when set.
+The frame pair lives on `frame_a` / `frame_b`, not the spine's single `coordinate_system`, so that
+key is absent.
+
+```python
+df = att.to_dataframe()
+df.columns.tolist()          # ['Epoch', 'Q1', 'Q2', 'Q3', 'QC'] for a quaternion attitude
+df.attrs["attitude_type"]    # 'QUATERNION'
+df.attrs["frame_a"], df.attrs["frame_b"]
+```
+
 The round trip `Ephemeris.from_dataframe(eph.to_dataframe())` reproduces the projected
 content without drift, so the DataFrame is a stable contract in both directions.
