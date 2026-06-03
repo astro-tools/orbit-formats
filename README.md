@@ -8,16 +8,15 @@
 
 Lossless round-trip across orbital state-vector and ephemeris formats.
 
-> **Status:** orbit-formats reads and writes the full CCSDS NDM family (OEM, OMM, OPM, OCM, AEM,
-> APM, CDM, TDM, and the combined NDM, in KVN and XML), TLE (two-line / 3LE / catalogue / alpha-5),
-> the Celestrak / Space-Track flat OMM (JSON and CSV), STK ephemeris, STK attitude, SP3, and SPICE
-> SPK (behind the `[spk]` extra); additionally reads GMAT report and RINEX navigation; rotates
-> Cartesian states across TEME / EME2000 / GCRF / ICRF / ITRF and projects Earth-fixed positions to
-> geodetic longitude / latitude / height; surfaces OPM / OCM maneuvers on the canonical object and
-> projects every time-series category — ephemeris, state, mean-element set, and attitude — to a
-> DataFrame; and round-trips its writable formats losslessly, cross-validated against Orekit and
-> SPICE. Next: the v1.0 API / representation freeze and a published deprecation policy.
-> See the [changelog](CHANGELOG.md) for released functionality.
+orbit-formats reads and writes the full CCSDS NDM family (OEM, OMM, OPM, OCM, AEM, APM, CDM, TDM,
+and the combined NDM, in KVN and XML), TLE (two-line / 3LE / catalogue / alpha-5), the Celestrak /
+Space-Track flat OMM (JSON and CSV), STK ephemeris, STK attitude, SP3, and SPICE SPK (behind the
+`[spk]` extra); additionally reads GMAT report and RINEX navigation; rotates Cartesian states
+across TEME / EME2000 / GCRF / ICRF / ITRF and projects Earth-fixed positions to geodetic
+longitude / latitude / height; surfaces OPM / OCM maneuvers on the canonical object and projects
+every time-series category — ephemeris, state, mean-element set, and attitude — to a DataFrame; and
+round-trips its writable formats losslessly, cross-validated against Orekit and SPICE. See the
+[changelog](CHANGELOG.md) for released functionality.
 
 ## What this is
 

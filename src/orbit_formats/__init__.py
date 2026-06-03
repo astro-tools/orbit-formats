@@ -57,7 +57,7 @@ from orbit_formats.warnings import (
     warn_lossy,
 )
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     "DEFAULT_UNITS",
