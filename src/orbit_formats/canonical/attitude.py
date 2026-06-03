@@ -23,9 +23,10 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
 
-from orbit_formats.canonical.base import Canonical
+from orbit_formats.canonical.base import EPOCH_COLUMN, Canonical, apply_spine_attrs
 
 __all__ = ["ATTITUDE_TYPES", "Attitude"]
 
@@ -98,3 +99,34 @@ class Attitude(Canonical):
             self.frame_b,
             self.euler_rot_seq,
         )
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """Project the attitude time series to a DataFrame.
+
+        Columns ``Epoch`` (``datetime64[ns]``) + the attitude type's component columns
+        (``float64``) — ``Q1, Q2, Q3, QC`` for ``QUATERNION``, ``ANGLE_1, ANGLE_2,
+        ANGLE_3`` for ``EULER_ANGLE``, ``SPIN_ALPHA, SPIN_DELTA, SPIN_ANGLE,
+        SPIN_ANGLE_VEL`` for ``SPIN`` — one row per epoch (many for an AEM history, one for
+        an APM). ``df.attrs`` carries the shared metadata spine (``object_name`` /
+        ``central_body`` / ``time_scale`` / ``units`` / ``epoch_scales`` when known),
+        matching :meth:`Ephemeris.to_dataframe`, plus the attitude-specific ``attitude_type``
+        and the ``frame_a`` / ``frame_b`` / ``euler_rot_seq`` tags when set. The frame pair
+        lives on these attrs, not the spine's single ``coordinate_system``, so that key is
+        absent. No astropy objects leak — values are plain numpy.
+        """
+        frame = pd.DataFrame(
+            {
+                EPOCH_COLUMN: self.epochs,
+                **{name: self.records[:, i] for i, name in enumerate(self.columns)},
+            }
+        )
+        apply_spine_attrs(frame, self.metadata)
+        frame.attrs["attitude_type"] = self.attitude_type
+        for key, value in (
+            ("frame_a", self.frame_a),
+            ("frame_b", self.frame_b),
+            ("euler_rot_seq", self.euler_rot_seq),
+        ):
+            if value is not None:
+                frame.attrs[key] = value
+        return frame
